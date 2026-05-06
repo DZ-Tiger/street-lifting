@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(0.98 0.01 247); /* Slate-50 alternative */
+  --foreground: oklch(0.2 0.02 247);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.02 247);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.02 247);
+  --primary: oklch(0.5 0.2 250); /* Pro Blue */
+  --primary-foreground: oklch(0.98 0.01 247);
+  --secondary: oklch(0.96 0.01 247);
+  --secondary-foreground: oklch(0.2 0.02 247);
+  --muted: oklch(0.96 0.01 247);
+  --muted-foreground: oklch(0.5 0.02 247);
+  --accent: oklch(0.96 0.01 247);
+  --accent-foreground: oklch(0.2 0.02 247);
+  --destructive: oklch(0.5 0.2 20);
+  --destructive-foreground: oklch(0.98 0.01 247);
+  --border: oklch(0.92 0.01 247);
+  --input: oklch(0.92 0.01 247);
+  --ring: oklch(0.5 0.2 250);
+  --chart-1: oklch(0.6 0.18 250);
+  --chart-2: oklch(0.6 0.16 180);
+  --chart-3: oklch(0.4 0.1 240);
+  --chart-4: oklch(0.7 0.14 280);
+  --chart-5: oklch(0.7 0.16 340);
+  --radius: 1rem;
+}
+
+/* On force le mode clair même si le système est en sombre */
+html {
+  background-color: #f8fafc; /* bg-slate-50 */
+  color: #0f172a;
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.dark {
+  display: none !important; /* On tue toute possibilité de dark mode */
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}
