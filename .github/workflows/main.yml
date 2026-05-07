@@ -1,20 +1,20 @@
-name: Deploy Street Lifting App
+name: Main Pipeline
+
 on:
   push:
     branches:
       - main
   pull_request:
-    types: [opened, synchronize, reopened, closed]
-  schedule:
-    - cron: '0 0 * * *' # Run daily at midnight
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 jobs:
   # CI: Lint, Test & Coverage
   ci:
     uses: ./.github/workflows/lint.yml
+    secrets: inherit
 
-  # CD: Deploy (only on main branch and after CI passes)
   deploy:
+    needs: ci
     uses: ./.github/workflows/deploy.yml
     secrets: inherit

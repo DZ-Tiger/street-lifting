@@ -1,5 +1,6 @@
 name: Deploy Street Lifting App
-on:  workflow_call
+on: 
+  workflow_call:
 
 jobs:
   deploy:
@@ -12,14 +13,21 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
         with:  
           node-version: 24
-      - run: npm install --global vercel@latest
-      - run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
-        working-directory: .
-      - run: vercel build --prod --token=$VERCEL_TOKEN
-        working-directory: .
-      - run: vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
-        working-directory: .
+          cache: 'npm'
+          
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+        
+      - name: Pull Vercel Environment Info
+        run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+        
+      - name: Build Project Artifacts
+        run: vercel build --prod --token=$VERCEL_TOKEN
+        
+      - name: Deploy Project to Vercel
+        run: vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
