@@ -23,11 +23,14 @@ export interface TrainingLog {
 
 interface SupabaseState {
   profile: UserProfile | null;
+  trainingLogs: TrainingLog[];
   loading: boolean;
   
   // Actions
   fetchProfile: () => Promise<void>;
+  fetchTrainingLogs: () => Promise<void>;
   updatePerformance: (exercise: ExerciseType, bw: number, lest: number, reps: number) => Promise<void>;
+  updateBodyweight: (bw: number) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -122,8 +125,20 @@ export const getSessionTemplate = (week: number, day: number, r1RMs: Record<Exer
   }
 };
 
+export const motivationalMessages = [
+  "La seule mauvaise séance est celle que tu n'as pas faite.",
+  "La discipline bat la motivation à chaque fois.",
+  "Chaque répétition compte vers ton futur record.",
+  "Le fer ne ment jamais.",
+  "Travaille en silence, laisse ton succès faire du bruit.",
+  "Force et Honneur.",
+  "Un peu plus chaque jour, c'est ça le Street Lifting.",
+  "Ton seul adversaire est celui dans le miroir."
+];
+
 export const useStore = create<SupabaseState>((set, get) => ({
   profile: null,
+  trainingLogs: [],
   loading: false,
 
   fetchProfile: async () => {
@@ -155,6 +170,21 @@ export const useStore = create<SupabaseState>((set, get) => ({
       };
       await supabase.from('profiles').insert(newProfile);
       set({ profile: newProfile as UserProfile, loading: false });
+    }
+  },
+
+  fetchTrainingLogs: async () => {
+    const { profile } = get();
+    if (!profile) return;
+
+    const { data, error } = await supabase
+      .from('training_logs')
+      .select('*')
+      .eq('user_id', profile.user_id)
+      .order('date', { ascending: false });
+
+    if (!error && data) {
+      set({ trainingLogs: data });
     }
   },
 
@@ -199,11 +229,27 @@ export const useStore = create<SupabaseState>((set, get) => ({
           [exerciseKeyMap[exercise]]: updatedValue 
         } 
       });
+      // Refresh logs
+      get().fetchTrainingLogs();
+    }
+  },
+
+  updateBodyweight: async (bw: number) => {
+    const { profile } = get();
+    if (!profile) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ current_bodyweight: bw })
+      .eq('user_id', profile.user_id);
+
+    if (!error) {
+      set({ profile: { ...profile, current_bodyweight: bw } });
     }
   },
 
   signOut: async () => {
     await supabase.auth.signOut();
-    set({ profile: null });
+    set({ profile: null, trainingLogs: [] });
   }
 }));
