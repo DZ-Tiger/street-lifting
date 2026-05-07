@@ -15,6 +15,5 @@ jobs:
     secrets: inherit
 
   deploy:
-    needs: ci
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
