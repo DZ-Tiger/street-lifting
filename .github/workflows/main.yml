@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - develop
   pull_request:
     types: [opened, synchronize, reopened, closed]
   schedule:
@@ -11,6 +10,11 @@ on:
   workflow_dispatch:
 
 jobs:
+  # CI: Lint, Test & Coverage
+  ci:
+    uses: ./.github/workflows/lint.yml
+
+  # CD: Deploy (only on main branch and after CI passes)
   deploy:
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
