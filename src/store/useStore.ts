@@ -23,16 +23,14 @@ export interface TrainingLog {
 
 interface SupabaseState {
   profile: UserProfile | null;
+  trainingLogs: TrainingLog[];
   loading: boolean;
-
+  
   // Actions
   fetchProfile: () => Promise<void>;
-  updatePerformance: (
-    exercise: ExerciseType,
-    bw: number,
-    lest: number,
-    reps: number
-  ) => Promise<void>;
+  fetchTrainingLogs: () => Promise<void>;
+  updatePerformance: (exercise: ExerciseType, bw: number, lest: number, reps: number) => Promise<void>;
+  updateBodyweight: (bw: number) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -50,14 +48,14 @@ export interface ProgressionStep {
 
 export const progressionMatrix: ProgressionStep[] = [
   { week: 1, pct: 0.75, reps: 5, isDeload: false },
-  { week: 2, pct: 0.8, reps: 4, isDeload: false },
+  { week: 2, pct: 0.80, reps: 4, isDeload: false },
   { week: 3, pct: 0.85, reps: 3, isDeload: false },
   { week: 4, pct: 0.65, reps: 5, isDeload: true },
   { week: 5, pct: 0.825, reps: 3, isDeload: false },
   { week: 6, pct: 0.85, reps: 3, isDeload: false },
-  { week: 7, pct: 0.9, reps: 2, isDeload: false },
-  { week: 8, pct: 0.7, reps: 3, isDeload: true },
-  { week: 9, pct: 1.0, reps: 1, isDeload: false },
+  { week: 7, pct: 0.90, reps: 2, isDeload: false },
+  { week: 8, pct: 0.70, reps: 3, isDeload: true },
+  { week: 9, pct: 1.00, reps: 1, isDeload: false },
 ];
 
 // Types pour les séances
@@ -69,14 +67,9 @@ export interface PlannedExercise {
   isMain?: boolean;
 }
 
-export const getSessionTemplate = (
-  week: number,
-  day: number,
-  r1RMs: Record<ExerciseType, number>,
-  bw: number
-): { title: string; mainExercise: ExerciseType; exercises: PlannedExercise[] } => {
-  const step = progressionMatrix.find((s) => s.week === week) || progressionMatrix[0];
-
+export const getSessionTemplate = (week: number, day: number, r1RMs: Record<ExerciseType, number>, bw: number): { title: string; mainExercise: ExerciseType; exercises: PlannedExercise[] } => {
+  const step = progressionMatrix.find(s => s.week === week) || progressionMatrix[0];
+  
   const calcLest = (target1RM: number, pct: number) => {
     const total = target1RM * pct;
     return Math.max(0, Math.round((total - bw) * 2) / 2);
@@ -85,126 +78,72 @@ export const getSessionTemplate = (
   switch (day) {
     case 1:
       return {
-        title: 'Force Tractions',
+        title: "Force Tractions",
         mainExercise: 'Tractions',
         exercises: [
-          {
-            name: 'Tractions Lestées',
-            sets: '3-5',
-            reps: `${step.reps}`,
-            weight: calcLest(r1RMs['Tractions'], step.pct),
-            isMain: true,
-          },
-          { name: 'Dips (Volume)', sets: '4', reps: '8-10', weight: calcLest(r1RMs['Dips'], 0.65) },
-          {
-            name: 'Back Extension',
-            sets: '3',
-            reps: '10-12',
-            weight: Math.round(r1RMs['Squat'] * 0.4 * 2) / 2,
-          },
-          {
-            name: 'Triceps Extension',
-            sets: '3',
-            reps: '12',
-            weight: Math.round(r1RMs['Dips'] * 0.15 * 2) / 2,
-          },
-        ],
+          { name: "Tractions Lestées", sets: "3-5", reps: `${step.reps}`, weight: calcLest(r1RMs['Tractions'], step.pct), isMain: true },
+          { name: "Dips (Volume)", sets: "4", reps: "8-10", weight: calcLest(r1RMs['Dips'], 0.65) },
+          { name: "Back Extension", sets: "3", reps: "10-12", weight: Math.round((r1RMs['Squat'] * 0.40) * 2) / 2 },
+          { name: "Triceps Extension", sets: "3", reps: "12", weight: Math.round((r1RMs['Dips'] * 0.15) * 2) / 2 },
+        ]
       };
     case 2:
       return {
-        title: 'Force Squat',
+        title: "Force Squat",
         mainExercise: 'Squat',
         exercises: [
-          {
-            name: 'Back Squat',
-            sets: '3-5',
-            reps: `${step.reps}`,
-            weight: calcLest(r1RMs['Squat'], step.pct),
-            isMain: true,
-          },
-          {
-            name: 'Fentes Bulgares',
-            sets: '3',
-            reps: '10/j',
-            weight: Math.round(r1RMs['Squat'] * 0.35 * 2) / 2,
-          },
-          {
-            name: 'Leg Curl',
-            sets: '3',
-            reps: '10',
-            weight: Math.round(r1RMs['Squat'] * 0.25 * 2) / 2,
-          },
-          { name: 'Relevés de jambes', sets: '4', reps: '15', weight: 'BW' },
-        ],
+          { name: "Back Squat", sets: "3-5", reps: `${step.reps}`, weight: calcLest(r1RMs['Squat'], step.pct), isMain: true },
+          { name: "Fentes Bulgares", sets: "3", reps: "10/j", weight: Math.round((r1RMs['Squat'] * 0.35) * 2) / 2 },
+          { name: "Leg Curl", sets: "3", reps: "10", weight: Math.round((r1RMs['Squat'] * 0.25) * 2) / 2 },
+          { name: "Relevés de jambes", sets: "4", reps: "15", weight: "BW" },
+        ]
       };
     case 3:
       return {
-        title: 'Force Dips',
+        title: "Force Dips",
         mainExercise: 'Dips',
         exercises: [
-          {
-            name: 'Dips Lestés',
-            sets: '3-5',
-            reps: `${step.reps}`,
-            weight: calcLest(r1RMs['Dips'], step.pct),
-            isMain: true,
-          },
-          { name: 'Muscle-ups (Tech)', sets: '4', reps: '2-3', weight: 'BW' },
-          {
-            name: 'Tractions (Volume)',
-            sets: '4',
-            reps: '8-10',
-            weight: calcLest(r1RMs['Tractions'], 0.65),
-          },
-          {
-            name: 'Facepulls',
-            sets: '3',
-            reps: '15',
-            weight: Math.round(r1RMs['Tractions'] * 0.15 * 2) / 2,
-          },
-        ],
+          { name: "Dips Lestés", sets: "3-5", reps: `${step.reps}`, weight: calcLest(r1RMs['Dips'], step.pct), isMain: true },
+          { name: "Muscle-ups (Tech)", sets: "4", reps: "2-3", weight: "BW" },
+          { name: "Tractions (Volume)", sets: "4", reps: "8-10", weight: calcLest(r1RMs['Tractions'], 0.65) },
+          { name: "Facepulls", sets: "3", reps: "15", weight: Math.round((r1RMs['Tractions'] * 0.15) * 2) / 2 },
+        ]
       };
     case 4:
       return {
-        title: 'Focus Muscle-up',
+        title: "Focus Muscle-up",
         mainExercise: 'Muscle-up',
         exercises: [
-          {
-            name: 'Muscle-ups Lestés',
-            sets: '3-5',
-            reps: `${step.reps}`,
-            weight: calcLest(r1RMs['Muscle-up'], step.pct),
-            isMain: true,
-          },
-          {
-            name: 'Pompes Lestées',
-            sets: '3',
-            reps: '10-12',
-            weight: calcLest(r1RMs['Dips'], 0.5),
-          },
-          {
-            name: 'Biceps Curls',
-            sets: '3',
-            reps: '12',
-            weight: Math.round(r1RMs['Tractions'] * 0.2 * 2) / 2,
-          },
-          { name: 'Gainage Lesté', sets: '3', reps: '45s', weight: calcLest(r1RMs['Squat'], 0.2) },
-        ],
+          { name: "Muscle-ups Lestés", sets: "3-5", reps: `${step.reps}`, weight: calcLest(r1RMs['Muscle-up'], step.pct), isMain: true },
+          { name: "Pompes Lestées", sets: "3", reps: "10-12", weight: calcLest(r1RMs['Dips'], 0.50) },
+          { name: "Biceps Curls", sets: "3", reps: "12", weight: Math.round((r1RMs['Tractions'] * 0.20) * 2) / 2 },
+          { name: "Gainage Lesté", sets: "3", reps: "45s", weight: calcLest(r1RMs['Squat'], 0.20) },
+        ]
       };
     default:
-      return { title: 'Repos', mainExercise: 'Tractions', exercises: [] };
+      return { title: "Repos", mainExercise: 'Tractions', exercises: [] };
   }
 };
 
+export const motivationalMessages = [
+  "La seule mauvaise séance est celle que tu n'as pas faite.",
+  "La discipline bat la motivation à chaque fois.",
+  "Chaque répétition compte vers ton futur record.",
+  "Le fer ne ment jamais.",
+  "Travaille en silence, laisse ton succès faire du bruit.",
+  "Force et Honneur.",
+  "Un peu plus chaque jour, c'est ça le Street Lifting.",
+  "Ton seul adversaire est celui dans le miroir."
+];
+
 export const useStore = create<SupabaseState>((set, get) => ({
   profile: null,
+  trainingLogs: [],
   loading: false,
 
   fetchProfile: async () => {
     set({ loading: true });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return set({ profile: null, loading: false });
 
     const { data, error } = await supabase
@@ -234,6 +173,21 @@ export const useStore = create<SupabaseState>((set, get) => ({
     }
   },
 
+  fetchTrainingLogs: async () => {
+    const { profile } = get();
+    if (!profile) return;
+
+    const { data, error } = await supabase
+      .from('training_logs')
+      .select('*')
+      .eq('user_id', profile.user_id)
+      .order('date', { ascending: false });
+
+    if (!error && data) {
+      set({ trainingLogs: data });
+    }
+  },
+
   updatePerformance: async (exercise, bw, lest, reps) => {
     const { profile } = get();
     if (!profile) return;
@@ -241,9 +195,9 @@ export const useStore = create<SupabaseState>((set, get) => ({
     const new1RM = calculate1RM(bw, lest, reps);
     const exerciseKeyMap: Record<ExerciseType, keyof UserProfile> = {
       'Muscle-up': 'max_muscleup',
-      Tractions: 'max_pullup',
-      Dips: 'max_dip',
-      Squat: 'max_squat',
+      'Tractions': 'max_pullup',
+      'Dips': 'max_dip',
+      'Squat': 'max_squat',
     };
 
     const updatedValue = Math.max(profile[exerciseKeyMap[exercise]] as number, new1RM);
@@ -268,18 +222,34 @@ export const useStore = create<SupabaseState>((set, get) => ({
       .eq('user_id', profile.user_id);
 
     if (!error) {
-      set({
-        profile: {
-          ...profile,
-          current_bodyweight: bw,
-          [exerciseKeyMap[exercise]]: updatedValue,
-        },
+      set({ 
+        profile: { 
+          ...profile, 
+          current_bodyweight: bw, 
+          [exerciseKeyMap[exercise]]: updatedValue 
+        } 
       });
+      // Refresh logs
+      get().fetchTrainingLogs();
+    }
+  },
+
+  updateBodyweight: async (bw: number) => {
+    const { profile } = get();
+    if (!profile) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ current_bodyweight: bw })
+      .eq('user_id', profile.user_id);
+
+    if (!error) {
+      set({ profile: { ...profile, current_bodyweight: bw } });
     }
   },
 
   signOut: async () => {
     await supabase.auth.signOut();
-    set({ profile: null });
-  },
+    set({ profile: null, trainingLogs: [] });
+  }
 }));

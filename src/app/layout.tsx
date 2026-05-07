@@ -6,8 +6,8 @@ import { Toaster } from '@/components/ui/sonner';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Street Lifting Coach',
-  description: "Programme d'autorégulation prédictif sur 8 semaines",
+  title: 'Street Flow',
+  description: 'Street Lifting App - Force & Progression',
 };
 
 export default function RootLayout({
