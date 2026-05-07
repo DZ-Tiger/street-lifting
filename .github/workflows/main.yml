@@ -1,16 +1,16 @@
 name: Deploy Street Lifting App
-on: 
+on:
   push:
     branches:
       - main
       - develop
   pull_request:
     types: [opened, synchronize, reopened, closed]
-  cron:
-    - '0 0 * * *' # Run daily at midnight
+  schedule:
+    - cron: '0 0 * * *' # Run daily at midnight
   workflow_dispatch:
-  
+
 jobs:
   deploy:
-  uses: ./.github/workflows/deploy.yml
-  secrets: inherit
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
