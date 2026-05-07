@@ -4,14 +4,24 @@ import { useStore, getSessionTemplate, progressionMatrix, calculate1RM } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Dumbbell, Scale, Trophy, ChevronRight, 
-  ChevronLeft, Check, Plus, Minus, Target, 
-  TrendingUp, Calendar, ArrowRight, LogOut,
-  Activity, Info, Loader2
+import {
+  Dumbbell,
+  Scale,
+  Trophy,
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  Plus,
+  Minus,
+  Target,
+  TrendingUp,
+  ArrowRight,
+  LogOut,
+  Activity,
+  Info,
+  Loader2,
 } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
@@ -21,9 +31,7 @@ import { supabase } from '@/lib/supabase';
 export default function Home() {
   const router = useRouter();
   const [hasMounted, setHasMounted] = useState(false);
-  const { 
-    profile, loading, fetchProfile, updatePerformance, signOut 
-  } = useStore();
+  const { profile, loading, fetchProfile, updatePerformance, signOut } = useStore();
 
   const [bwInput, setBwInput] = useState(75);
   const [lestInput, setLestInput] = useState(0);
@@ -34,7 +42,9 @@ export default function Home() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         router.push('/login');
       } else {
@@ -45,26 +55,35 @@ export default function Home() {
     checkUser();
   }, [fetchProfile, router]);
 
-  const oneRMs = useMemo(() => ({
-    'Muscle-up': profile?.max_muscleup || 0,
-    'Tractions': profile?.max_pullup || 0,
-    'Dips': profile?.max_dip || 0,
-    'Squat': profile?.max_squat || 0,
-  }), [profile]);
+  const oneRMs = useMemo(
+    () => ({
+      'Muscle-up': profile?.max_muscleup || 0,
+      Tractions: profile?.max_pullup || 0,
+      Dips: profile?.max_dip || 0,
+      Squat: profile?.max_squat || 0,
+    }),
+    [profile]
+  );
 
   const bodyWeight = profile?.current_bodyweight || 75;
 
   const template = useMemo(() => {
-    const t = getSessionTemplate(currentWeek, currentDay, oneRMs, bodyWeight);
-    const main = t.exercises.find(e => e.isMain);
+    return getSessionTemplate(currentWeek, currentDay, oneRMs, bodyWeight);
+  }, [currentWeek, currentDay, oneRMs, bodyWeight]);
+
+  useEffect(() => {
+    const main = template.exercises.find((e) => e.isMain);
     if (main && typeof main.weight === 'number') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLestInput(main.weight);
+
       setRepsInput(parseInt(main.reps));
     }
+
     setBwInput(bodyWeight);
+
     setIsDone(false);
-    return t;
-  }, [currentWeek, currentDay, oneRMs, bodyWeight]);
+  }, [template, bodyWeight]);
 
   if (!hasMounted || loading) {
     return (
@@ -76,17 +95,17 @@ export default function Home() {
 
   const handleValidateMain = async () => {
     await updatePerformance(template.mainExercise, bwInput, lestInput, repsInput);
-    
+
     const old1RM = oneRMs[template.mainExercise];
     const new1RM = calculate1RM(bwInput, lestInput, repsInput);
-    
+
     if (new1RM > old1RM) {
-      toast.success("NOUVEAU RECORD !", {
+      toast.success('NOUVEAU RECORD !', {
         description: `${template.mainExercise} : ${Math.round(new1RM * 10) / 10}kg 🔥`,
-        className: "bg-emerald-50 border-emerald-200 text-emerald-800"
+        className: 'bg-emerald-50 border-emerald-200 text-emerald-800',
       });
     } else {
-      toast.info("Performance validée");
+      toast.info('Performance validée');
     }
     setIsDone(true);
   };
@@ -107,7 +126,12 @@ export default function Home() {
             Street <span className="text-blue-600">Flow</span>
           </span>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-400 hover:text-red-500">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLogout}
+          className="text-slate-400 hover:text-red-500"
+        >
           <LogOut className="w-4 h-4" />
         </Button>
       </nav>
@@ -121,7 +145,10 @@ export default function Home() {
             <p className="text-xl font-black text-slate-800">{bodyWeight}kg</p>
           </div>
           {(['Muscle-up', 'Tractions', 'Dips', 'Squat'] as const).map((ex) => (
-            <div key={ex} className="flex-shrink-0 bg-white border border-slate-100 p-4 rounded-2xl min-w-[120px] shadow-sm">
+            <div
+              key={ex}
+              className="flex-shrink-0 bg-white border border-slate-100 p-4 rounded-2xl min-w-[120px] shadow-sm"
+            >
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 mb-1">
                 <Trophy className="w-3 h-3 text-amber-500" /> {ex}
               </p>
@@ -136,13 +163,25 @@ export default function Home() {
               <Badge className="bg-blue-600/10 text-blue-600 border-none px-2 py-0.5 font-bold text-[10px] uppercase">
                 W{currentWeek} • Jour {currentDay}
               </Badge>
-              <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-tight">{template.title}</h2>
+              <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-tight">
+                {template.title}
+              </h2>
             </div>
             <div className="flex gap-1.5">
-              <Button size="icon" variant="outline" className="h-9 w-9 rounded-xl border-slate-100" onClick={() => setCurrentDay(Math.max(1, currentDay - 1))}>
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-9 w-9 rounded-xl border-slate-100"
+                onClick={() => setCurrentDay(Math.max(1, currentDay - 1))}
+              >
                 <ChevronLeft className="w-5 h-5" />
               </Button>
-              <Button size="icon" variant="outline" className="h-9 w-9 rounded-xl border-slate-100" onClick={() => setCurrentDay(Math.min(4, currentDay + 1))}>
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-9 w-9 rounded-xl border-slate-100"
+                onClick={() => setCurrentDay(Math.min(4, currentDay + 1))}
+              >
                 <ChevronRight className="w-5 h-5" />
               </Button>
             </div>
@@ -150,10 +189,14 @@ export default function Home() {
 
           <div className="flex gap-1">
             {progressionMatrix.slice(0, 9).map((step) => (
-              <div 
+              <div
                 key={step.week}
                 className={`h-1.5 flex-1 rounded-full transition-all cursor-pointer ${
-                  currentWeek === step.week ? 'bg-blue-600' : currentWeek > step.week ? 'bg-blue-200' : 'bg-slate-200'
+                  currentWeek === step.week
+                    ? 'bg-blue-600'
+                    : currentWeek > step.week
+                      ? 'bg-blue-200'
+                      : 'bg-slate-200'
                 }`}
                 onClick={() => setCurrentWeek(step.week)}
               />
@@ -174,39 +217,85 @@ export default function Home() {
                 <span className="text-white font-black uppercase italic text-xs flex items-center gap-2">
                   <Target className="w-4 h-4" /> Force
                 </span>
-                <span className="text-[10px] text-blue-100 font-bold uppercase">Base: {Math.round(oneRMs[template.mainExercise])}kg</span>
+                <span className="text-[10px] text-blue-100 font-bold uppercase">
+                  Base: {Math.round(oneRMs[template.mainExercise])}kg
+                </span>
               </div>
-              
+
               <CardContent className="p-6 space-y-6">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-xl font-black text-slate-900 uppercase italic">{template.mainExercise}</h3>
+                    <h3 className="text-xl font-black text-slate-900 uppercase italic">
+                      {template.mainExercise}
+                    </h3>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                      Objectif : {Math.round((progressionMatrix.find(s => s.week === currentWeek)?.pct || 0) * 100)}% d&apos;intensité
+                      Objectif :{' '}
+                      {Math.round(
+                        (progressionMatrix.find((s) => s.week === currentWeek)?.pct || 0) * 100
+                      )}
+                      % d&apos;intensité
                     </p>
                   </div>
                   <div className="text-right">
-                    <span className="text-4xl font-black text-blue-600 tracking-tighter">{lestInput}kg</span>
+                    <span className="text-4xl font-black text-blue-600 tracking-tighter">
+                      {lestInput}kg
+                    </span>
                     <p className="text-[9px] font-bold text-slate-400 uppercase">Cible Lest</p>
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   {[
-                    { label: 'Poids de Corps', value: bwInput, setter: setBwInput, step: 0.5, unit: 'kg' },
-                    { label: 'Lest Réel', value: lestInput, setter: setLestInput, step: 0.5, unit: 'kg' },
-                    { label: 'Reps Réelles', value: repsInput, setter: setRepsInput, step: 1, unit: '' }
+                    {
+                      label: 'Poids de Corps',
+                      value: bwInput,
+                      setter: setBwInput,
+                      step: 0.5,
+                      unit: 'kg',
+                    },
+                    {
+                      label: 'Lest Réel',
+                      value: lestInput,
+                      setter: setLestInput,
+                      step: 0.5,
+                      unit: 'kg',
+                    },
+                    {
+                      label: 'Reps Réelles',
+                      value: repsInput,
+                      setter: setRepsInput,
+                      step: 1,
+                      unit: '',
+                    },
                   ].map((field) => (
-                    <div key={field.label} className="bg-slate-50/50 p-3 rounded-2xl border border-slate-100 flex items-center justify-between">
-                      <Label className="text-[10px] font-black uppercase text-slate-400">{field.label}</Label>
+                    <div
+                      key={field.label}
+                      className="bg-slate-50/50 p-3 rounded-2xl border border-slate-100 flex items-center justify-between"
+                    >
+                      <Label className="text-[10px] font-black uppercase text-slate-400">
+                        {field.label}
+                      </Label>
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl bg-white" onClick={() => field.setter(field.value - field.step)}>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-10 w-10 rounded-xl bg-white"
+                          onClick={() => field.setter(field.value - field.step)}
+                        >
                           <Minus className="w-4 h-4" />
                         </Button>
                         <div className="w-16 text-center">
-                          <span className="text-lg font-black text-slate-800">{field.value}{field.unit}</span>
+                          <span className="text-lg font-black text-slate-800">
+                            {field.value}
+                            {field.unit}
+                          </span>
                         </div>
-                        <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl bg-white" onClick={() => field.setter(field.value + field.step)}>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-10 w-10 rounded-xl bg-white"
+                          onClick={() => field.setter(field.value + field.step)}
+                        >
                           <Plus className="w-4 h-4" />
                         </Button>
                       </div>
@@ -214,12 +303,18 @@ export default function Home() {
                   ))}
                 </div>
 
-                <Button 
+                <Button
                   onClick={handleValidateMain}
                   disabled={isDone || loading}
                   className="w-full h-14 rounded-2xl bg-blue-600 text-white font-black text-lg uppercase italic shadow-lg shadow-blue-500/20"
                 >
-                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : isDone ? <Check className="w-6 h-6" /> : "Valider"}
+                  {loading ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : isDone ? (
+                    <Check className="w-6 h-6" />
+                  ) : (
+                    'Valider'
+                  )}
                 </Button>
               </CardContent>
             </Card>
@@ -229,33 +324,42 @@ export default function Home() {
                 <Activity className="w-3 h-3" /> Accessoires
               </h4>
               <div className="space-y-2">
-                {template.exercises.filter(e => !e.isMain).map((ex) => (
-                  <Card key={ex.name} className="bg-white border-slate-100 rounded-2xl shadow-sm">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center">
-                          <Dumbbell className="w-4 h-4 text-slate-400" />
+                {template.exercises
+                  .filter((e) => !e.isMain)
+                  .map((ex) => (
+                    <Card key={ex.name} className="bg-white border-slate-100 rounded-2xl shadow-sm">
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center">
+                            <Dumbbell className="w-4 h-4 text-slate-400" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800 text-sm">{ex.name}</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase">
+                              {ex.sets}x{ex.reps}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-800 text-sm">{ex.name}</p>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase">{ex.sets}x{ex.reps}</p>
+                        <div className="text-right">
+                          <span className="text-base font-black text-slate-700">
+                            {typeof ex.weight === 'number' ? `${ex.weight}kg` : ex.weight}
+                          </span>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-base font-black text-slate-700">{typeof ex.weight === 'number' ? `${ex.weight}kg` : ex.weight}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))}
               </div>
             </div>
 
             <div className="pt-4">
-              <Button 
+              <Button
                 variant="outline"
                 onClick={() => {
                   if (currentDay < 4) setCurrentDay(currentDay + 1);
-                  else { setCurrentWeek(Math.min(9, currentWeek + 1)); setCurrentDay(1); }
+                  else {
+                    setCurrentWeek(Math.min(9, currentWeek + 1));
+                    setCurrentDay(1);
+                  }
                   setIsDone(false);
                 }}
                 className="w-full h-12 rounded-xl border-slate-200 text-slate-600 font-bold"
