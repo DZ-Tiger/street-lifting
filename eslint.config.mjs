@@ -22,13 +22,6 @@ const eslintConfig = defineConfig([
           varsIgnorePattern: '^_',
         },
       ],
-      '@typescript-eslint/explicit-function-return-types': [
-        'warn',
-        {
-          allowExpressions: true,
-          allowTypedFunctionExpressions: true,
-        },
-      ],
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-console': [
         'warn',
