@@ -1,5 +1,5 @@
 /** @type {import('prettier').Config} */
-export default {
+const config = {
   semi: true,
   singleQuote: true,
   tabWidth: 2,
@@ -9,3 +9,5 @@ export default {
   endOfLine: 'lf',
   plugins: [],
 };
+
+export default config;
