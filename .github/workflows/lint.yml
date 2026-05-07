@@ -17,7 +17,8 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        # On utilise install au lieu de ci pour resynchroniser le lockfile
+        run: npm install --legacy-peer-deps
 
       - name: Run ESLint
         run: npm run lint
@@ -35,21 +36,18 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Run tests with coverage
         run: npm run test:coverage
 
       - name: Check coverage threshold
         run: |
-          # Utilisation de Node pour parser le JSON de manière plus fiable que grep
           COVERAGE=$(node -e "const c = require('./coverage/coverage-summary.json'); console.log(c.total.lines.pct)")
           THRESHOLD=80
           if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
-            echo "Coverage is $COVERAGE%, which is below the required threshold of $THRESHOLD%"
+            echo "Coverage is $COVERAGE%, which is below $THRESHOLD%"
             exit 1
-          else
-            echo "Coverage is $COVERAGE%, which meets the threshold."
           fi
 
   build:
@@ -65,7 +63,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Build application
         run: npm run build
