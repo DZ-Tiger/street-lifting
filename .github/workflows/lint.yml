@@ -3,6 +3,9 @@ name: CI - Lint & Test Coverage
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint

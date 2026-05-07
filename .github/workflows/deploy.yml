@@ -2,6 +2,9 @@ name: Deploy Street Lifting App
 on: 
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy to Vercel
