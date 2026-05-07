@@ -1,0 +1,23 @@
+name: Deploy Street Lifting App
+on:  workflow_call
+
+jobs:
+  deploy:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:  
+          node-version: 24
+      - run: npm install --global vercel@latest
+      - run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+        working-directory: .
+      - run: vercel build --prod --token=$VERCEL_TOKEN
+        working-directory: .
+      - run: vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+        working-directory: .
