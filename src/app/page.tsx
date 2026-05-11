@@ -21,22 +21,23 @@ import {
   TrendingUp, Calendar, ArrowRight, LogOut,
   Activity, Info, Loader2, History, Pencil,
   Clock, Flame, Home, User, BarChart3,
-  Quote, CalendarDays, Zap
+  Quote, CalendarDays, Zap, LineChart
 } from 'lucide-react';
 import React, { useState, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import ProgressionView from '@/components/ProgressionView';
 
 export default function App() {
   const router = useRouter();
   const [hasMounted, setHasMounted] = useState(false);
   const { 
-    profile, trainingLogs, loading, fetchProfile, fetchTrainingLogs, updatePerformance, updateBodyweight, signOut 
+    profile, exerciseLogs, completedSessions, loading, fetchProfile, fetchTrainingLogs, updatePerformance, updateLogFeedback, updateBodyweight, signOut 
   } = useStore();
 
-  const [currentView, setCurrentView] = useState<'home' | 'sessions' | 'profile'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'sessions' | 'progression' | 'profile'>('home');
   
   // Training State
   const [bwInput, setBwInput] = useState(75);
@@ -49,6 +50,25 @@ export default function App() {
   // Profile State
   const [isWeightDialogOpen, setIsWeightDialogOpen] = useState(false);
   const [newBw, setNewBw] = useState(75);
+
+  // Timer & Feedback State
+  const [currentLogId, setCurrentLogId] = useState<string | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState(120);
+  const [isTimerActive, setIsTimerActive] = useState(false);
+  const [rpeInput, setRpeInput] = useState<number>(8);
+  const [tagsInput, setTagsInput] = useState<string[]>([]);
+  const [showFeedback, setShowFeedback] = useState(false);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isTimerActive && timerSeconds > 0) {
+      interval = setInterval(() => setTimerSeconds(prev => prev - 1), 1000);
+    } else if (timerSeconds === 0 && isTimerActive) {
+      setIsTimerActive(false);
+      toast.info("Fin du repos ! À toi de jouer !");
+    }
+    return () => clearInterval(interval);
+  }, [isTimerActive, timerSeconds]);
 
   // Continuous adjustment logic
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -70,8 +90,10 @@ export default function App() {
     return () => stopAdjusting();
   }, []);
 
-  const quote = useMemo(() => {
-    return motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)];
+  const [quote, setQuote] = useState(motivationalMessages[0]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQuote(motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)]);
   }, []);
 
   useEffect(() => {
@@ -90,30 +112,37 @@ export default function App() {
   useEffect(() => {
     if (profile) {
       fetchTrainingLogs();
-      setBwInput(profile.current_bodyweight);
-      setNewBw(profile.current_bodyweight);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setBwInput(profile.body_weight);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNewBw(profile.body_weight);
     }
   }, [profile, fetchTrainingLogs]);
 
   const oneRMs = useMemo(() => ({
-    'Muscle-up': profile?.max_muscleup || 0,
-    'Tractions': profile?.max_pullup || 0,
-    'Dips': profile?.max_dip || 0,
-    'Squat': profile?.max_squat || 0,
+    'Muscle-up': profile?.current_1rm_muscleup || 0,
+    'Tractions': profile?.current_1rm_pullup || 0,
+    'Dips': profile?.current_1rm_dips || 0,
+    'Squat': profile?.current_1rm_squat || 0,
   }), [profile]);
 
-  const bodyWeight = profile?.current_bodyweight || 75;
+  const bodyWeight = profile?.body_weight || 75;
 
   const template = useMemo(() => {
-    const t = getSessionTemplate(currentWeek, currentDay, oneRMs, bodyWeight);
-    const main = t.exercises.find(e => e.isMain);
+    return getSessionTemplate(currentWeek, currentDay, oneRMs, bodyWeight);
+  }, [currentWeek, currentDay, oneRMs, bodyWeight]);
+
+  useEffect(() => {
+    const main = template.exercises.find(e => e.isMain);
     if (main && typeof main.weight === 'number') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLestInput(main.weight);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRepsInput(parseInt(main.reps));
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDone(false);
-    return t;
-  }, [currentWeek, currentDay, oneRMs, bodyWeight]);
+  }, [template]);
 
   if (!hasMounted || loading) {
     return (
@@ -124,12 +153,11 @@ export default function App() {
   }
 
   const handleValidateMain = async () => {
-    await updatePerformance(template.mainExercise, bwInput, lestInput, repsInput);
+    const { isPR, new1RM, logId } = await updatePerformance(
+      template.mainExercise, bwInput, lestInput, repsInput, 8, [], currentWeek, currentDay
+    );
     
-    const old1RM = oneRMs[template.mainExercise];
-    const new1RM = calculate1RM(bwInput, lestInput, repsInput);
-    
-    if (new1RM > old1RM) {
+    if (isPR) {
       toast.success("NOUVEAU RECORD !", {
         description: `${template.mainExercise} : ${Math.round(new1RM * 10) / 10}kg 🔥`,
         className: "bg-emerald-50 border-emerald-200 text-emerald-800"
@@ -137,7 +165,22 @@ export default function App() {
     } else {
       toast.info("Performance validée");
     }
+    
+    setCurrentLogId(logId);
     setIsDone(true);
+    setTimerSeconds(120);
+    setIsTimerActive(true);
+    setShowFeedback(true);
+    setRpeInput(8);
+    setTagsInput([]);
+  };
+
+  const submitFeedback = async () => {
+    if (currentLogId) {
+      await updateLogFeedback(currentLogId, rpeInput, tagsInput);
+      toast.success("Feedback enregistré");
+    }
+    setShowFeedback(false);
   };
 
   const handleUpdateBw = async () => {
@@ -221,6 +264,47 @@ export default function App() {
                 </Card>
               </div>
 
+              {/* Jauge de Standard */}
+              <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-amber-500" /> Standard Street Lifting
+                  </h3>
+                  <span className="text-[10px] font-bold text-slate-400">Basé sur les Tractions</span>
+                </div>
+                
+                {(() => {
+                  const ratio = bodyWeight > 0 ? (oneRMs['Tractions'] / bodyWeight) : 0;
+                  const pct = Math.min(100, Math.max(0, (ratio / 1.8) * 100)); // Max elite is around 1.8
+                  let label = 'Débutant';
+                  let color = 'bg-slate-300';
+                  if (ratio >= 1.3 && ratio < 1.6) { label = 'Intermédiaire'; color = 'bg-blue-500'; }
+                  else if (ratio >= 1.6) { label = 'Élite'; color = 'bg-amber-500'; }
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-end">
+                        <span className="text-2xl font-black text-slate-800 italic">{Math.round(ratio * 100) / 100}x <span className="text-xs font-bold text-slate-400 not-italic">PDC</span></span>
+                        <Badge className={`${color} text-white border-none font-black text-[9px] uppercase tracking-widest px-3 py-1`}>{label}</Badge>
+                      </div>
+                      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 1, ease: "easeOut" }}
+                          className={`h-full ${color} rounded-full`}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[8px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                        <span>1.0</span>
+                        <span>1.3 (Int.)</span>
+                        <span>1.6 (Élite)</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
               {/* Quick Stats */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm">
@@ -230,7 +314,7 @@ export default function App() {
                      </div>
                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total Sessions</span>
                    </div>
-                   <p className="text-3xl font-black text-slate-800">{trainingLogs.length}</p>
+                   <p className="text-3xl font-black text-slate-800">{completedSessions.length}</p>
                 </div>
                 <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm">
                    <div className="flex items-center gap-2 mb-2">
@@ -240,8 +324,8 @@ export default function App() {
                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Moyenne 1RM</span>
                    </div>
                    <p className="text-3xl font-black text-slate-800">
-                     {trainingLogs.length > 0 
-                       ? Math.round(trainingLogs.reduce((acc, log) => acc + log.calculated_1rm, 0) / trainingLogs.length)
+                     {exerciseLogs.length > 0 
+                       ? Math.round(exerciseLogs.reduce((acc, log) => acc + log.calculated_1rm, 0) / exerciseLogs.length)
                        : 0}
                      <span className="text-sm font-bold ml-1">kg</span>
                    </p>
@@ -335,7 +419,7 @@ export default function App() {
                                 <div className="w-20 text-center">
                                   <Input 
                                     type="number" 
-                                    value={field.value} 
+                                    value={field.value ?? 0} 
                                     onChange={(e) => field.setter(parseFloat(e.target.value) || 0)}
                                     className="text-xl font-black text-slate-800 text-center border-none shadow-none focus-visible:ring-0 p-0 h-auto bg-transparent"
                                   />
@@ -357,13 +441,95 @@ export default function App() {
                           ))}
                         </div>
 
-                    <Button 
-                      onClick={handleValidateMain}
-                      disabled={isDone || loading}
-                      className="w-full h-16 rounded-[1.25rem] bg-blue-600 hover:bg-blue-700 text-white font-black text-xl uppercase italic shadow-lg shadow-blue-500/20 transition-all active:scale-95"
-                    >
-                      {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : isDone ? <Check className="w-6 h-6" /> : "Valider la séance"}
-                    </Button>
+                    <AnimatePresence mode="wait">
+                      {!showFeedback ? (
+                        <motion.div key="valider" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                          <Button 
+                            onClick={handleValidateMain}
+                            disabled={isDone || loading}
+                            className="w-full h-16 rounded-[1.25rem] bg-blue-600 hover:bg-blue-700 text-white font-black text-xl uppercase italic shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+                          >
+                            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : isDone ? <Check className="w-6 h-6" /> : "Valider la série"}
+                          </Button>
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="feedback"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-4 pt-2 overflow-hidden"
+                        >
+                          {/* Timer */}
+                          <div className="bg-slate-900 rounded-[1.5rem] p-5 flex items-center justify-between text-white shadow-xl shadow-slate-900/10">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center">
+                                <Clock className="w-5 h-5 text-blue-400" />
+                              </div>
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Temps de Repos</span>
+                            </div>
+                            <span className="text-4xl font-black italic tracking-tighter">
+                              {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, '0')}
+                            </span>
+                          </div>
+                          
+                          {/* Feedback */}
+                          <div className="bg-slate-50 rounded-[1.5rem] p-5 space-y-4 border border-slate-100">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em] flex items-center gap-2">
+                                <Activity className="w-3 h-3 text-amber-500" /> Difficulté (RPE)
+                              </Label>
+                              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+                                {[6, 7, 8, 8.5, 9, 9.5, 10].map(rpe => (
+                                  <Button
+                                    key={rpe}
+                                    variant={rpeInput === rpe ? "default" : "outline"}
+                                    onClick={() => setRpeInput(rpe)}
+                                    className={cn(
+                                      "rounded-[1rem] min-w-[3.5rem] h-12 font-black text-sm transition-all",
+                                      rpeInput === rpe 
+                                        ? 'bg-amber-500 hover:bg-amber-600 border-none text-white shadow-lg shadow-amber-500/20 scale-105' 
+                                        : 'bg-white text-slate-400 border-slate-200'
+                                    )}
+                                  >
+                                    {rpe}
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em] flex items-center gap-2">
+                                <Target className="w-3 h-3 text-blue-500" /> Technique
+                              </Label>
+                              <div className="flex gap-2 flex-wrap">
+                                {['Clean', 'Kipping', 'Amplitude Incomplète', 'Lent'].map(tag => (
+                                  <button
+                                    key={tag}
+                                    onClick={() => setTagsInput(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
+                                    className={cn(
+                                      "px-4 py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all border",
+                                      tagsInput.includes(tag) 
+                                        ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                                        : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                                    )}
+                                  >
+                                    {tag}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            
+                            <Button 
+                              onClick={submitFeedback}
+                              className="w-full h-14 rounded-[1rem] bg-slate-900 hover:bg-slate-800 text-white font-black text-sm uppercase italic mt-2"
+                            >
+                              Enregistrer Feedback
+                            </Button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </CardContent>
                 </Card>
 
@@ -400,19 +566,19 @@ export default function App() {
                     <History className="w-3 h-3" /> Historique récent
                   </h4>
                   <div className="space-y-3">
-                    {trainingLogs.slice(0, 10).map((log, idx) => (
+                    {exerciseLogs.slice(0, 10).map((log, idx) => (
                       <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center justify-between shadow-sm relative overflow-hidden">
                         <div className="space-y-1">
                            <div className="flex items-center gap-2">
-                             <span className="font-black text-slate-900 uppercase italic text-xs">{log.exercise_type}</span>
+                             <span className="font-black text-slate-900 uppercase italic text-xs">{log.exercise_name}</span>
                              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">
-                               {new Date(log.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                               {log.date ? new Date(log.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : 'N/A'}
                              </span>
                            </div>
                            <div className="flex items-center gap-3 text-slate-400 font-bold text-[10px] uppercase tracking-tighter">
-                             <span>Lest: +{log.weight_added}kg</span>
+                             <span>Lest: +{log.added_weight}kg</span>
                              <span>•</span>
-                             <span>{log.reps_done} reps</span>
+                             <span>{log.reps} reps</span>
                            </div>
                         </div>
                         <div className="text-right">
@@ -424,12 +590,16 @@ export default function App() {
                         </div>
                       </div>
                     ))}
-                    {trainingLogs.length === 0 && (
+                    {exerciseLogs.length === 0 && (
                       <p className="text-center py-10 text-slate-400 font-bold text-xs uppercase tracking-widest italic">Aucun historique disponible</p>
                     )}
                   </div>
               </div>
             </motion.div>
+          )}
+
+          {currentView === 'progression' && (
+            <ProgressionView key="progression" />
           )}
 
           {currentView === 'profile' && (
@@ -577,11 +747,12 @@ export default function App() {
          {[
            { id: 'home', icon: Home, label: 'Accueil' },
            { id: 'sessions', icon: Dumbbell, label: 'Séances' },
+           { id: 'progression', icon: LineChart, label: 'Progrès' },
            { id: 'profile', icon: User, label: 'Profil' }
          ].map((item) => (
            <button
              key={item.id}
-             onClick={() => setCurrentView(item.id as any)}
+             onClick={() => setCurrentView(item.id as 'home' | 'sessions' | 'progression' | 'profile')}
              className={cn(
                "flex flex-col items-center gap-1 transition-all relative px-4 py-2 rounded-2xl",
                currentView === item.id ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"
