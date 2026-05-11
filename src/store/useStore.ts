@@ -31,8 +31,8 @@ export interface ExerciseLog {
   added_weight: number;
   total_weight: number;
   reps: number;
-  rpe: number;
-  form_tags: string[];
+  rpe: number | null;
+  form_tags: string[] | null;
   calculated_1rm: number;
   is_pr: boolean;
 }
