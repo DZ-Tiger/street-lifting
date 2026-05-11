@@ -1,3 +1,5 @@
+[![Main Pipeline](https://github.com/DZ-Tiger/street-lifting/actions/workflows/main.yml/badge.svg)](https://github.com/DZ-Tiger/street-lifting/actions/workflows/main.yml)
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
