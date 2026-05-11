@@ -1,10 +1,10 @@
-import type { Metadata } from "next";
-import "./globals.css";
-import { Toaster } from "@/components/ui/sonner";
+import type { Metadata } from 'next';
+import './globals.css';
+import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
-  title: "Street Flow",
-  description: "Street Lifting App - Force & Progression",
+  title: 'Street Flow',
+  description: 'Street Lifting App - Force & Progression',
 };
 
 export default function RootLayout({

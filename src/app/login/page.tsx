@@ -51,7 +51,12 @@ export default function LoginPage() {
         <div className="bg-blue-600 h-2 w-full" />
         <CardHeader className="pt-10 pb-6 text-center relative">
           <div className="absolute top-4 right-4">
-            <Button variant="ghost" size="sm" onClick={handleDevLogin} className="text-[10px] uppercase font-bold text-slate-400">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDevLogin}
+              className="text-[10px] uppercase font-bold text-slate-400"
+            >
               Dev Mode
             </Button>
           </div>

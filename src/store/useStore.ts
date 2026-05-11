@@ -42,20 +42,20 @@ interface SupabaseState {
   exerciseLogs: ExerciseLog[];
   completedSessions: CompletedSession[];
   loading: boolean;
-  
+
   // Actions
   fetchProfile: () => Promise<void>;
   fetchTrainingLogs: () => Promise<void>;
   updatePerformance: (
-    exercise: ExerciseType, 
-    bw: number, 
-    lest: number, 
-    reps: number, 
-    rpe: number, 
-    form_tags: string[], 
-    week: number, 
+    exercise: ExerciseType,
+    bw: number,
+    lest: number,
+    reps: number,
+    rpe: number,
+    form_tags: string[],
+    week: number,
     day: number
-  ) => Promise<{isPR: boolean, new1RM: number, logId: string}>;
+  ) => Promise<{ isPR: boolean; new1RM: number; logId: string }>;
   updateLogFeedback: (logId: string, rpe: number, form_tags: string[]) => Promise<void>;
   updateBodyweight: (bw: number) => Promise<void>;
   signOut: () => Promise<void>;
@@ -75,14 +75,14 @@ export interface ProgressionStep {
 
 export const progressionMatrix: ProgressionStep[] = [
   { week: 1, pct: 0.75, reps: 5, isDeload: false },
-  { week: 2, pct: 0.80, reps: 4, isDeload: false },
+  { week: 2, pct: 0.8, reps: 4, isDeload: false },
   { week: 3, pct: 0.85, reps: 3, isDeload: false },
   { week: 4, pct: 0.65, reps: 5, isDeload: true },
   { week: 5, pct: 0.825, reps: 3, isDeload: false },
   { week: 6, pct: 0.85, reps: 3, isDeload: false },
-  { week: 7, pct: 0.90, reps: 2, isDeload: false },
-  { week: 8, pct: 0.70, reps: 3, isDeload: true },
-  { week: 9, pct: 1.00, reps: 1, isDeload: false },
+  { week: 7, pct: 0.9, reps: 2, isDeload: false },
+  { week: 8, pct: 0.7, reps: 3, isDeload: true },
+  { week: 9, pct: 1.0, reps: 1, isDeload: false },
 ];
 
 // Types pour les séances
@@ -94,9 +94,14 @@ export interface PlannedExercise {
   isMain?: boolean;
 }
 
-export const getSessionTemplate = (week: number, day: number, r1RMs: Record<ExerciseType, number>, bw: number): { title: string; mainExercise: ExerciseType; exercises: PlannedExercise[] } => {
-  const step = progressionMatrix.find(s => s.week === week) || progressionMatrix[0];
-  
+export const getSessionTemplate = (
+  week: number,
+  day: number,
+  r1RMs: Record<ExerciseType, number>,
+  bw: number
+): { title: string; mainExercise: ExerciseType; exercises: PlannedExercise[] } => {
+  const step = progressionMatrix.find((s) => s.week === week) || progressionMatrix[0];
+
   const calcLest = (target1RM: number, pct: number) => {
     const total = target1RM * pct;
     return Math.max(0, Math.round((total - bw) * 2) / 2);
@@ -105,62 +110,126 @@ export const getSessionTemplate = (week: number, day: number, r1RMs: Record<Exer
   switch (day) {
     case 1:
       return {
-        title: "Force Tractions",
+        title: 'Force Tractions',
         mainExercise: 'Tractions',
         exercises: [
-          { name: "Tractions Lestées", sets: "3-5", reps: `${step.reps}`, weight: calcLest(r1RMs['Tractions'], step.pct), isMain: true },
-          { name: "Dips (Volume)", sets: "4", reps: "8-10", weight: calcLest(r1RMs['Dips'], 0.65) },
-          { name: "Back Extension", sets: "3", reps: "10-12", weight: Math.round((r1RMs['Squat'] * 0.40) * 2) / 2 },
-          { name: "Triceps Extension", sets: "3", reps: "12", weight: Math.round((r1RMs['Dips'] * 0.15) * 2) / 2 },
-        ]
+          {
+            name: 'Tractions Lestées',
+            sets: '3-5',
+            reps: `${step.reps}`,
+            weight: calcLest(r1RMs['Tractions'], step.pct),
+            isMain: true,
+          },
+          { name: 'Dips (Volume)', sets: '4', reps: '8-10', weight: calcLest(r1RMs['Dips'], 0.65) },
+          {
+            name: 'Back Extension',
+            sets: '3',
+            reps: '10-12',
+            weight: Math.round(r1RMs['Squat'] * 0.4 * 2) / 2,
+          },
+          {
+            name: 'Triceps Extension',
+            sets: '3',
+            reps: '12',
+            weight: Math.round(r1RMs['Dips'] * 0.15 * 2) / 2,
+          },
+        ],
       };
     case 2:
       return {
-        title: "Force Squat",
+        title: 'Force Squat',
         mainExercise: 'Squat',
         exercises: [
-          { name: "Back Squat", sets: "3-5", reps: `${step.reps}`, weight: calcLest(r1RMs['Squat'], step.pct), isMain: true },
-          { name: "Fentes Bulgares", sets: "3", reps: "10/j", weight: Math.round((r1RMs['Squat'] * 0.35) * 2) / 2 },
-          { name: "Leg Curl", sets: "3", reps: "10", weight: Math.round((r1RMs['Squat'] * 0.25) * 2) / 2 },
-          { name: "Relevés de jambes", sets: "4", reps: "15", weight: "BW" },
-        ]
+          {
+            name: 'Back Squat',
+            sets: '3-5',
+            reps: `${step.reps}`,
+            weight: calcLest(r1RMs['Squat'], step.pct),
+            isMain: true,
+          },
+          {
+            name: 'Fentes Bulgares',
+            sets: '3',
+            reps: '10/j',
+            weight: Math.round(r1RMs['Squat'] * 0.35 * 2) / 2,
+          },
+          {
+            name: 'Leg Curl',
+            sets: '3',
+            reps: '10',
+            weight: Math.round(r1RMs['Squat'] * 0.25 * 2) / 2,
+          },
+          { name: 'Relevés de jambes', sets: '4', reps: '15', weight: 'BW' },
+        ],
       };
     case 3:
       return {
-        title: "Force Dips",
+        title: 'Force Dips',
         mainExercise: 'Dips',
         exercises: [
-          { name: "Dips Lestés", sets: "3-5", reps: `${step.reps}`, weight: calcLest(r1RMs['Dips'], step.pct), isMain: true },
-          { name: "Muscle-ups (Tech)", sets: "4", reps: "2-3", weight: "BW" },
-          { name: "Tractions (Volume)", sets: "4", reps: "8-10", weight: calcLest(r1RMs['Tractions'], 0.65) },
-          { name: "Facepulls", sets: "3", reps: "15", weight: Math.round((r1RMs['Tractions'] * 0.15) * 2) / 2 },
-        ]
+          {
+            name: 'Dips Lestés',
+            sets: '3-5',
+            reps: `${step.reps}`,
+            weight: calcLest(r1RMs['Dips'], step.pct),
+            isMain: true,
+          },
+          { name: 'Muscle-ups (Tech)', sets: '4', reps: '2-3', weight: 'BW' },
+          {
+            name: 'Tractions (Volume)',
+            sets: '4',
+            reps: '8-10',
+            weight: calcLest(r1RMs['Tractions'], 0.65),
+          },
+          {
+            name: 'Facepulls',
+            sets: '3',
+            reps: '15',
+            weight: Math.round(r1RMs['Tractions'] * 0.15 * 2) / 2,
+          },
+        ],
       };
     case 4:
       return {
-        title: "Focus Muscle-up",
+        title: 'Focus Muscle-up',
         mainExercise: 'Muscle-up',
         exercises: [
-          { name: "Muscle-ups Lestés", sets: "3-5", reps: `${step.reps}`, weight: calcLest(r1RMs['Muscle-up'], step.pct), isMain: true },
-          { name: "Pompes Lestées", sets: "3", reps: "10-12", weight: calcLest(r1RMs['Dips'], 0.50) },
-          { name: "Biceps Curls", sets: "3", reps: "12", weight: Math.round((r1RMs['Tractions'] * 0.20) * 2) / 2 },
-          { name: "Gainage Lesté", sets: "3", reps: "45s", weight: calcLest(r1RMs['Squat'], 0.20) },
-        ]
+          {
+            name: 'Muscle-ups Lestés',
+            sets: '3-5',
+            reps: `${step.reps}`,
+            weight: calcLest(r1RMs['Muscle-up'], step.pct),
+            isMain: true,
+          },
+          {
+            name: 'Pompes Lestées',
+            sets: '3',
+            reps: '10-12',
+            weight: calcLest(r1RMs['Dips'], 0.5),
+          },
+          {
+            name: 'Biceps Curls',
+            sets: '3',
+            reps: '12',
+            weight: Math.round(r1RMs['Tractions'] * 0.2 * 2) / 2,
+          },
+          { name: 'Gainage Lesté', sets: '3', reps: '45s', weight: calcLest(r1RMs['Squat'], 0.2) },
+        ],
       };
     default:
-      return { title: "Repos", mainExercise: 'Tractions', exercises: [] };
+      return { title: 'Repos', mainExercise: 'Tractions', exercises: [] };
   }
 };
 
 export const motivationalMessages = [
   "La seule mauvaise séance est celle que tu n'as pas faite.",
-  "La discipline bat la motivation à chaque fois.",
-  "Chaque répétition compte vers ton futur record.",
-  "Le fer ne ment jamais.",
-  "Travaille en silence, laisse ton succès faire du bruit.",
-  "Force et Honneur.",
+  'La discipline bat la motivation à chaque fois.',
+  'Chaque répétition compte vers ton futur record.',
+  'Le fer ne ment jamais.',
+  'Travaille en silence, laisse ton succès faire du bruit.',
+  'Force et Honneur.',
   "Un peu plus chaque jour, c'est ça le Street Lifting.",
-  "Ton seul adversaire est celui dans le miroir."
+  'Ton seul adversaire est celui dans le miroir.',
 ];
 
 export const useStore = create<SupabaseState>((set, get) => ({
@@ -171,7 +240,9 @@ export const useStore = create<SupabaseState>((set, get) => ({
 
   fetchProfile: async () => {
     set({ loading: true });
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return set({ profile: null, loading: false });
 
     const { data, error } = await supabase
@@ -206,8 +277,16 @@ export const useStore = create<SupabaseState>((set, get) => ({
     if (!profile) return;
 
     const [logsRes, sessionsRes] = await Promise.all([
-      supabase.from('exercise_logs').select('*').eq('user_id', profile.user_id).order('date', { ascending: false }),
-      supabase.from('completed_sessions').select('*').eq('user_id', profile.user_id).order('date', { ascending: false })
+      supabase
+        .from('exercise_logs')
+        .select('*')
+        .eq('user_id', profile.user_id)
+        .order('date', { ascending: false }),
+      supabase
+        .from('completed_sessions')
+        .select('*')
+        .eq('user_id', profile.user_id)
+        .order('date', { ascending: false }),
     ]);
 
     if (!logsRes.error && logsRes.data) {
@@ -226,9 +305,9 @@ export const useStore = create<SupabaseState>((set, get) => ({
     const new1RM = calculate1RM(totalWeight, reps);
     const exerciseKeyMap: Record<ExerciseType, keyof UserProfile> = {
       'Muscle-up': 'current_1rm_muscleup',
-      'Tractions': 'current_1rm_pullup',
-      'Dips': 'current_1rm_dips',
-      'Squat': 'current_1rm_squat',
+      Tractions: 'current_1rm_pullup',
+      Dips: 'current_1rm_dips',
+      Squat: 'current_1rm_squat',
     };
 
     const currentMax = profile[exerciseKeyMap[exercise]] as number;
@@ -238,29 +317,37 @@ export const useStore = create<SupabaseState>((set, get) => ({
     const totalVolume = totalWeight * reps;
 
     // 1. Session log
-    const { data: sessionData } = await supabase.from('completed_sessions').insert({
-      user_id: profile.user_id,
-      week_number: week,
-      day_number: day,
-      date: dateStr,
-      total_volume: totalVolume
-    }).select('id').single();
+    const { data: sessionData } = await supabase
+      .from('completed_sessions')
+      .insert({
+        user_id: profile.user_id,
+        week_number: week,
+        day_number: day,
+        date: dateStr,
+        total_volume: totalVolume,
+      })
+      .select('id')
+      .single();
 
     // 2. Exercise log
-    const { data: logData } = await supabase.from('exercise_logs').insert({
-      session_id: sessionData?.id,
-      user_id: profile.user_id,
-      date: dateStr,
-      exercise_name: exercise,
-      body_weight_used: bw,
-      added_weight: lest,
-      total_weight: totalWeight,
-      reps: reps,
-      rpe: rpe,
-      form_tags: form_tags,
-      calculated_1rm: new1RM,
-      is_pr: isPR
-    }).select('id').single();
+    const { data: logData } = await supabase
+      .from('exercise_logs')
+      .insert({
+        session_id: sessionData?.id,
+        user_id: profile.user_id,
+        date: dateStr,
+        exercise_name: exercise,
+        body_weight_used: bw,
+        added_weight: lest,
+        total_weight: totalWeight,
+        reps: reps,
+        rpe: rpe,
+        form_tags: form_tags,
+        calculated_1rm: new1RM,
+        is_pr: isPR,
+      })
+      .select('id')
+      .single();
 
     // 3. Update Profile
     const { error } = await supabase
@@ -272,17 +359,17 @@ export const useStore = create<SupabaseState>((set, get) => ({
       .eq('user_id', profile.user_id);
 
     if (!error) {
-      set({ 
-        profile: { 
-          ...profile, 
-          body_weight: bw, 
-          [exerciseKeyMap[exercise]]: updatedValue 
-        } 
+      set({
+        profile: {
+          ...profile,
+          body_weight: bw,
+          [exerciseKeyMap[exercise]]: updatedValue,
+        },
       });
       // Refresh logs
       get().fetchTrainingLogs();
     }
-    
+
     return { isPR, new1RM, logId: logData?.id || '' };
   },
 
@@ -309,5 +396,5 @@ export const useStore = create<SupabaseState>((set, get) => ({
   signOut: async () => {
     await supabase.auth.signOut();
     set({ profile: null, exerciseLogs: [], completedSessions: [] });
-  }
+  },
 }));
