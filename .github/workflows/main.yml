@@ -16,7 +16,3 @@ jobs:
   ci:
     uses: ./.github/workflows/lint.yml
     secrets: inherit
-
-  deploy:
-    uses: ./.github/workflows/deploy.yml
-    secrets: inherit
