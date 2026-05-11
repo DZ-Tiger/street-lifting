@@ -1,3 +1,6 @@
+[![Copilot cloud agent](https://github.com/DZ-Tiger/street-lifting/actions/workflows/copilot-swe-agent/copilot/badge.svg?branch=main&event=deployment_status)](https://github.com/DZ-Tiger/street-lifting/actions/workflows/copilot-swe-agent/copilot)
+[![Copilot cloud agent](https://github.com/DZ-Tiger/street-lifting/actions/workflows/copilot-swe-agent/copilot/badge.svg?branch=main)](https://github.com/DZ-Tiger/street-lifting/actions/workflows/copilot-swe-agent/copilot)
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
