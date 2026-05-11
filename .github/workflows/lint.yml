@@ -20,7 +20,6 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        # On utilise install au lieu de ci pour resynchroniser le lockfile
         run: npm install --legacy-peer-deps
 
       - name: Run ESLint
