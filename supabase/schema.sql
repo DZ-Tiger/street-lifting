@@ -48,18 +48,18 @@ alter table public.exercise_logs enable row level security;
 -- Profiles
 create policy "Users can view own profile" on public.profiles for select using (auth.uid() = user_id);
 create policy "Users can insert own profile" on public.profiles for insert with check (auth.uid() = user_id);
-create policy "Users can update own profile" on public.profiles for update using (auth.uid() = user_id);
+create policy "Users can update own profile" on public.profiles for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- Completed Sessions
 create policy "Users can view own sessions" on public.completed_sessions for select using (auth.uid() = user_id);
 create policy "Users can insert own sessions" on public.completed_sessions for insert with check (auth.uid() = user_id);
-create policy "Users can update own sessions" on public.completed_sessions for update using (auth.uid() = user_id);
+create policy "Users can update own sessions" on public.completed_sessions for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "Users can delete own sessions" on public.completed_sessions for delete using (auth.uid() = user_id);
 
 -- Exercise Logs
 create policy "Users can view own exercise logs" on public.exercise_logs for select using (auth.uid() = user_id);
 create policy "Users can insert own exercise logs" on public.exercise_logs for insert with check (auth.uid() = user_id);
-create policy "Users can update own exercise logs" on public.exercise_logs for update using (auth.uid() = user_id);
+create policy "Users can update own exercise logs" on public.exercise_logs for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "Users can delete own exercise logs" on public.exercise_logs for delete using (auth.uid() = user_id);
 
 -- 7. Trigger to automatically create profile on sign up
