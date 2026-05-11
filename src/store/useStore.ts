@@ -5,25 +5,42 @@ export type ExerciseType = 'Muscle-up' | 'Tractions' | 'Dips' | 'Squat';
 
 export interface UserProfile {
   user_id: string;
-  current_bodyweight: number;
-  max_muscleup: number;
-  max_pullup: number;
-  max_dip: number;
-  max_squat: number;
+  body_weight: number;
+  current_1rm_muscleup: number;
+  current_1rm_pullup: number;
+  current_1rm_dips: number;
+  current_1rm_squat: number;
 }
 
-export interface TrainingLog {
+export interface CompletedSession {
+  id?: string;
+  user_id: string;
+  week_number: number;
+  day_number: number;
+  date: string;
+  total_volume: number;
+}
+
+export interface ExerciseLog {
+  id?: string;
+  session_id?: string;
   user_id: string;
   date: string;
-  exercise_type: ExerciseType;
-  weight_added: number;
-  reps_done: number;
+  exercise_name: ExerciseType;
+  body_weight_used: number;
+  added_weight: number;
+  total_weight: number;
+  reps: number;
+  rpe: number | null;
+  form_tags: string[] | null;
   calculated_1rm: number;
+  is_pr: boolean;
 }
 
 interface SupabaseState {
   profile: UserProfile | null;
-  trainingLogs: TrainingLog[];
+  exerciseLogs: ExerciseLog[];
+  completedSessions: CompletedSession[];
   loading: boolean;
 
   // Actions
@@ -33,15 +50,20 @@ interface SupabaseState {
     exercise: ExerciseType,
     bw: number,
     lest: number,
-    reps: number
-  ) => Promise<void>;
+    reps: number,
+    rpe: number,
+    form_tags: string[],
+    week: number,
+    day: number
+  ) => Promise<{ isPR: boolean; new1RM: number; logId: string }>;
+  updateLogFeedback: (logId: string, rpe: number, form_tags: string[]) => Promise<void>;
   updateBodyweight: (bw: number) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
-export const calculate1RM = (bw: number, lest: number, reps: number) => {
-  if (reps === 1) return bw + lest;
-  return (bw + lest) * (1 + reps / 30);
+export const calculate1RM = (total_weight: number, reps: number) => {
+  if (reps === 1) return total_weight;
+  return total_weight * (1 + reps / 30);
 };
 
 export interface ProgressionStep {
@@ -212,7 +234,8 @@ export const motivationalMessages = [
 
 export const useStore = create<SupabaseState>((set, get) => ({
   profile: null,
-  trainingLogs: [],
+  exerciseLogs: [],
+  completedSessions: [],
   loading: false,
 
   fetchProfile: async () => {
@@ -238,11 +261,11 @@ export const useStore = create<SupabaseState>((set, get) => ({
       // Initialiser un profil si inexistant
       const newProfile = {
         user_id: user.id,
-        current_bodyweight: 75,
-        max_muscleup: 90,
-        max_pullup: 115,
-        max_dip: 135,
-        max_squat: 140,
+        body_weight: 75,
+        current_1rm_muscleup: 90,
+        current_1rm_pullup: 115,
+        current_1rm_dips: 135,
+        current_1rm_squat: 140,
       };
       await supabase.from('profiles').insert(newProfile);
       set({ profile: newProfile as UserProfile, loading: false });
@@ -253,46 +276,84 @@ export const useStore = create<SupabaseState>((set, get) => ({
     const { profile } = get();
     if (!profile) return;
 
-    const { data, error } = await supabase
-      .from('training_logs')
-      .select('*')
-      .eq('user_id', profile.user_id)
-      .order('date', { ascending: false });
+    const [logsRes, sessionsRes] = await Promise.all([
+      supabase
+        .from('exercise_logs')
+        .select('*')
+        .eq('user_id', profile.user_id)
+        .order('date', { ascending: false }),
+      supabase
+        .from('completed_sessions')
+        .select('*')
+        .eq('user_id', profile.user_id)
+        .order('date', { ascending: false }),
+    ]);
 
-    if (!error && data) {
-      set({ trainingLogs: data });
+    if (!logsRes.error && logsRes.data) {
+      set({ exerciseLogs: logsRes.data });
+    }
+    if (!sessionsRes.error && sessionsRes.data) {
+      set({ completedSessions: sessionsRes.data });
     }
   },
 
-  updatePerformance: async (exercise, bw, lest, reps) => {
+  updatePerformance: async (exercise, bw, lest, reps, rpe, form_tags, week, day) => {
     const { profile } = get();
-    if (!profile) return;
+    if (!profile) return { isPR: false, new1RM: 0, logId: '' };
 
-    const new1RM = calculate1RM(bw, lest, reps);
+    const totalWeight = bw + lest;
+    const new1RM = calculate1RM(totalWeight, reps);
     const exerciseKeyMap: Record<ExerciseType, keyof UserProfile> = {
-      'Muscle-up': 'max_muscleup',
-      Tractions: 'max_pullup',
-      Dips: 'max_dip',
-      Squat: 'max_squat',
+      'Muscle-up': 'current_1rm_muscleup',
+      Tractions: 'current_1rm_pullup',
+      Dips: 'current_1rm_dips',
+      Squat: 'current_1rm_squat',
     };
 
-    const updatedValue = Math.max(profile[exerciseKeyMap[exercise]] as number, new1RM);
+    const currentMax = profile[exerciseKeyMap[exercise]] as number;
+    const isPR = new1RM > currentMax;
+    const updatedValue = Math.max(currentMax, new1RM);
+    const dateStr = new Date().toISOString();
+    const totalVolume = totalWeight * reps;
 
-    // 1. Log the training
-    await supabase.from('training_logs').insert({
-      user_id: profile.user_id,
-      date: new Date().toISOString(),
-      exercise_type: exercise,
-      weight_added: lest,
-      reps_done: reps,
-      calculated_1rm: new1RM,
-    });
+    // 1. Session log
+    const { data: sessionData } = await supabase
+      .from('completed_sessions')
+      .insert({
+        user_id: profile.user_id,
+        week_number: week,
+        day_number: day,
+        date: dateStr,
+        total_volume: totalVolume,
+      })
+      .select('id')
+      .single();
 
-    // 2. Update Profile
+    // 2. Exercise log
+    const { data: logData } = await supabase
+      .from('exercise_logs')
+      .insert({
+        session_id: sessionData?.id,
+        user_id: profile.user_id,
+        date: dateStr,
+        exercise_name: exercise,
+        body_weight_used: bw,
+        added_weight: lest,
+        total_weight: totalWeight,
+        reps: reps,
+        rpe: rpe,
+        form_tags: form_tags,
+        calculated_1rm: new1RM,
+        is_pr: isPR,
+      })
+      .select('id')
+      .single();
+
+    // 3. Update Profile
     const { error } = await supabase
       .from('profiles')
       .update({
-        current_bodyweight: bw,
+        body_weight: bw,
         [exerciseKeyMap[exercise]]: updatedValue,
       })
       .eq('user_id', profile.user_id);
@@ -301,13 +362,21 @@ export const useStore = create<SupabaseState>((set, get) => ({
       set({
         profile: {
           ...profile,
-          current_bodyweight: bw,
+          body_weight: bw,
           [exerciseKeyMap[exercise]]: updatedValue,
         },
       });
       // Refresh logs
       get().fetchTrainingLogs();
     }
+
+    return { isPR, new1RM, logId: logData?.id || '' };
+  },
+
+  updateLogFeedback: async (logId: string, rpe: number, form_tags: string[]) => {
+    if (!logId) return;
+    await supabase.from('exercise_logs').update({ rpe, form_tags }).eq('id', logId);
+    get().fetchTrainingLogs();
   },
 
   updateBodyweight: async (bw: number) => {
@@ -316,16 +385,16 @@ export const useStore = create<SupabaseState>((set, get) => ({
 
     const { error } = await supabase
       .from('profiles')
-      .update({ current_bodyweight: bw })
+      .update({ body_weight: bw })
       .eq('user_id', profile.user_id);
 
     if (!error) {
-      set({ profile: { ...profile, current_bodyweight: bw } });
+      set({ profile: { ...profile, body_weight: bw } });
     }
   },
 
   signOut: async () => {
     await supabase.auth.signOut();
-    set({ profile: null, trainingLogs: [] });
+    set({ profile: null, exerciseLogs: [], completedSessions: [] });
   },
 }));
