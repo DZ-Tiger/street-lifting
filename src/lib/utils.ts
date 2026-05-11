@@ -17,7 +17,10 @@ export function calculateTrendline(data: { x: number, y: number }[]) {
     sumX2 += point.x * point.x;
   }
   
-  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const denominator = n * sumX2 - sumX * sumX;
+  if (denominator === 0) return null;
+
+  const slope = (n * sumXY - sumX * sumY) / denominator;
   const intercept = (sumY - slope * sumX) / n;
   
   return { slope, intercept };
