@@ -1392,15 +1392,15 @@ export default function NutritionPage() {
       }
       await supabase.from('nutrition_logs').insert({
         user_id: user.id,
-          meal_name: scanResult.mealName,
-          calories: finalCalories,
-          protein: finalProtein,
-          carbs: finalCarbs,
-          fat: finalFat,
-          micros: scanResult.micros,
-          image_url: image,
-        });
-      }
+        meal_name: scanResult.mealName,
+        calories: finalCalories,
+        protein: finalProtein,
+        carbs: finalCarbs,
+        fat: finalFat,
+        micros: scanResult.micros,
+        image_url: image,
+      });
+
       const now = new Date();
       const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       addMeal({
@@ -1474,15 +1474,15 @@ export default function NutritionPage() {
       }
       await supabase.from('nutrition_logs').insert({
         user_id: user.id,
-          meal_name: data.name,
-          calories: data.calories,
-          protein: data.protein,
-          carbs: data.carbs,
-          fat: data.fat,
-          micros: [],
-          image_url: null,
-        });
-      }
+        meal_name: data.name,
+        calories: data.calories,
+        protein: data.protein,
+        carbs: data.carbs,
+        fat: data.fat,
+        micros: [],
+        image_url: null,
+      });
+
       const now = new Date();
       const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       addMeal({

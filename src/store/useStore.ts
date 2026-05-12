@@ -287,7 +287,11 @@ export const useStore = create<SupabaseState>((set, get) => ({
       let retries = 3;
 
       while (retries > 0 && !profileData) {
-        const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
 
         if (data) {
           profileData = data;
