@@ -1376,19 +1376,26 @@ export function NutritionScreen({
     try {
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('nutrition_logs').insert({
-          user_id: user.id,
-          meal_name: scanResult.mealName,
-          calories: finalCalories,
-          protein: finalProtein,
-          carbs: finalCarbs,
-          fat: finalFat,
-          micros: scanResult.micros,
-          image_url: null,
-        });
+
+      if (authError || !user) {
+        toast.error('Session expirée, veuillez vous reconnecter.');
+        await supabase.auth.signOut();
+        router.push('/login');
+        return;
       }
+      await supabase.from('nutrition_logs').insert({
+        user_id: user.id,
+        meal_name: scanResult.mealName,
+        calories: finalCalories,
+        protein: finalProtein,
+        carbs: finalCarbs,
+        fat: finalFat,
+        micros: scanResult.micros,
+        image_url: image,
+      });
+
       const now = new Date();
       const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       addMeal({
@@ -1454,19 +1461,25 @@ export function NutritionScreen({
     try {
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('nutrition_logs').insert({
-          user_id: user.id,
-          meal_name: data.name,
-          calories: data.calories,
-          protein: data.protein,
-          carbs: data.carbs,
-          fat: data.fat,
-          micros: [],
-          image_url: null,
-        });
+      if (authError || !user) {
+        toast.error('Session expirée, veuillez vous reconnecter.');
+        await supabase.auth.signOut();
+        router.push('/login');
+        return;
       }
+      await supabase.from('nutrition_logs').insert({
+        user_id: user.id,
+        meal_name: data.name,
+        calories: data.calories,
+        protein: data.protein,
+        carbs: data.carbs,
+        fat: data.fat,
+        micros: [],
+        image_url: null,
+      });
+
       const now = new Date();
       const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       addMeal({

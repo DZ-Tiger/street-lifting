@@ -651,9 +651,24 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) router.push('/');
-    });
+    const checkUser = async () => {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+        if (user && !error) {
+          router.push('/');
+        } else if (error) {
+          // If there's an error (like invalid refresh token), sign out to clear local state
+          console.warn('Login page auth check error, clearing session:', error.message);
+          await supabase.auth.signOut();
+        }
+      } catch (err) {
+        console.error('Unexpected auth error in login page:', err);
+      }
+    };
+    checkUser();
   }, [router]);
 
   const handleLogin = async (email: string, password: string) => {
