@@ -1,66 +1,1400 @@
 'use client';
 
+import React, { useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import {
   useStore,
   getSessionTemplate,
   progressionMatrix,
-  motivationalMessages,
   ExerciseType,
+  ExerciseLog,
+  CompletedSession,
+  UserProfile,
   calculateAge,
 } from '@/store/useStore';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Dumbbell,
-  Scale,
-  Trophy,
-  ChevronRight,
-  ChevronLeft,
-  Check,
-  Plus,
-  Minus,
-  Target,
-  TrendingUp,
-  LogOut,
-  Activity,
-  Info,
-  Loader2,
-  History,
-  Pencil,
-  Clock,
-  Flame,
-  Home,
-  User,
-  Settings,
-  BarChart3,
-  Quote,
-  CalendarDays,
-  Zap,
-  LineChart,
-  Utensils,
-} from 'lucide-react';
-import React, { useState, useMemo, useEffect } from 'react';
-import { toast } from 'sonner';
+import { useNutritionStore, calculateTargets } from '@/store/useNutritionStore';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
-import ProgressionView from '@/components/ProgressionView';
+import { toast } from 'sonner';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
+import { SKINS, SkinKey, SKIN_STORAGE_KEY, applySkin } from '@/lib/useSkin';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Dumbbell,
+  Home,
+  Loader2,
+  LogOut,
+  Minus,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  TrendingUp,
+  User,
+  Utensils,
+} from 'lucide-react';
+
+/* ─────────────────────── Micro-components ─────────────────────── */
+
+const NL = ({
+  children,
+  className = '',
+  style,
+}: {
+  children: ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+}) => (
+  <span
+    className={`text-[10px] font-medium uppercase tracking-[0.16em] ${className}`}
+    style={{ color: 'var(--muted)', ...style }}
+  >
+    {children}
+  </span>
+);
+
+const NN = ({
+  children,
+  className = '',
+  style,
+}: {
+  children: ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+}) => (
+  <span
+    className={`font-mono tabular-nums ${className}`}
+    style={{
+      fontFamily: 'var(--font-geist-mono, ui-monospace, monospace)',
+      fontFeatureSettings: '"tnum" 1, "ss01" 1',
+      ...style,
+    }}
+  >
+    {children}
+  </span>
+);
+
+/* ─────────────────────── Stepper ─────────────────────── */
+
+const Stepper = ({
+  value,
+  onChange,
+  step = 1,
+  suffix,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  step?: number;
+  suffix?: string;
+}) => (
+  <div
+    className="flex items-stretch rounded-2xl overflow-hidden border"
+    style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+  >
+    <button
+      onClick={() => onChange(Math.max(0, Math.round((value - step) * 100) / 100))}
+      className="w-16 flex items-center justify-center transition active:opacity-60"
+      style={{ color: 'var(--fg)' }}
+      aria-label="decrement"
+    >
+      <Minus size={24} strokeWidth={2} />
+    </button>
+    <div className="flex-1 flex items-baseline justify-center gap-1.5 py-4">
+      <NN
+        className="text-[44px] font-medium leading-none tracking-tight"
+        style={{ color: 'var(--fg)' }}
+      >
+        {value}
+      </NN>
+      {suffix && <NL className="text-[10px]">{suffix}</NL>}
+    </div>
+    <button
+      onClick={() => onChange(Math.round((value + step) * 100) / 100)}
+      className="w-16 flex items-center justify-center transition active:opacity-60"
+      style={{ color: 'var(--fg)' }}
+      aria-label="increment"
+    >
+      <Plus size={24} strokeWidth={2} />
+    </button>
+  </div>
+);
+
+/* ─────────────────────── SmallRing ─────────────────────── */
+
+const SmallRing = ({ pct }: { pct: number }) => {
+  const r = 24;
+  const s = 2.5;
+  const C = 2 * Math.PI * r;
+  return (
+    <svg width="64" height="64" viewBox="0 0 64 64" className="shrink-0">
+      <circle cx="32" cy="32" r={r} fill="none" stroke="var(--border)" strokeWidth={s} />
+      <circle
+        cx="32"
+        cy="32"
+        r={r}
+        fill="none"
+        stroke="var(--fg)"
+        strokeWidth={s}
+        strokeLinecap="round"
+        strokeDasharray={C}
+        strokeDashoffset={C - Math.min(pct, 1) * C}
+        transform="rotate(-90 32 32)"
+      />
+    </svg>
+  );
+};
+
+/* ─────────────────────── SparkLine ─────────────────────── */
+
+const SparkLine = ({ data, height = 90 }: { data: number[]; height?: number }) => {
+  if (data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const w = 320;
+  const padX = 8;
+  const xs = data.map((_, i) => padX + (i * (w - padX * 2)) / (data.length - 1));
+  const ys = data.map((v) => height - 8 - ((v - min) / (max - min || 1)) * (height - 16));
+  const d = data.map((_, i) => `${i === 0 ? 'M' : 'L'}${xs[i]},${ys[i]}`).join(' ');
+  const area = `${d} L${xs[xs.length - 1]},${height} L${xs[0]},${height} Z`;
+  return (
+    <svg viewBox={`0 0 ${w} ${height}`} className="w-full block">
+      <defs>
+        <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--fg)" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="var(--fg)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[0.25, 0.5, 0.75].map((p) => (
+        <line
+          key={p}
+          x1={padX}
+          x2={w - padX}
+          y1={height * p}
+          y2={height * p}
+          stroke="var(--border)"
+          strokeDasharray="1 4"
+        />
+      ))}
+      <path d={area} fill="url(#spark-grad)" />
+      <path d={d} stroke="var(--fg)" fill="none" strokeWidth="1.5" strokeLinecap="round" />
+      {xs.map((x, i) => (
+        <circle
+          key={i}
+          cx={x}
+          cy={ys[i]}
+          r={i === data.length - 1 ? 3 : 1.5}
+          fill={i === data.length - 1 ? 'var(--fg)' : 'var(--muted)'}
+        />
+      ))}
+    </svg>
+  );
+};
+
+/* ─────────────────────── Heatmap ─────────────────────── */
+
+const Heatmap = ({ sessionDates }: { sessionDates: string[] }) => {
+  const today = new Date();
+  const days = Array.from({ length: 12 * 7 }).map((_, i) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (12 * 7 - 1 - i));
+    const dateStr = date.toISOString().split('T')[0];
+    const count = sessionDates.filter((d) => d.startsWith(dateStr)).length;
+    return count === 0 ? 0 : count >= 3 ? 3 : count >= 2 ? 2 : 1;
+  });
+  const cell = (l: number) =>
+    l === 0
+      ? 'bg-[var(--surface-2)]'
+      : l === 1
+        ? 'bg-[var(--ink-3)]'
+        : l === 2
+          ? 'bg-[var(--ink-2)]'
+          : 'bg-[var(--fg)]';
+  return (
+    <div>
+      <div className="grid grid-rows-7 grid-flow-col gap-1">
+        {days.map((d, i) => (
+          <div key={i} className={`h-3 w-3 rounded-[3px] ${cell(d)}`} />
+        ))}
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <NN className="text-[9px]" style={{ color: 'var(--muted)' }}>
+          12 sem.
+        </NN>
+        <div className="flex items-center gap-1">
+          <NL className="text-[8px]">moins</NL>
+          {[0, 1, 2, 3].map((l) => (
+            <div key={l} className={`h-2 w-2 rounded-sm ${cell(l)}`} />
+          ))}
+          <NL className="text-[8px]">plus</NL>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── SHeader ─────────────────────── */
+
+const SHeader = ({ title, right }: { title: string; right?: ReactNode }) => (
+  <div
+    className="flex items-center justify-between px-5 pt-3 pb-4 shrink-0"
+    style={{ background: 'var(--bg)' }}
+  >
+    <div
+      className="text-[11px] font-medium uppercase tracking-[0.28em]"
+      style={{ color: 'var(--fg)' }}
+    >
+      {title}
+    </div>
+    {right ?? <div className="h-10 w-10" />}
+  </div>
+);
+
+/* ─────────────────────── Bottom Nav ─────────────────────── */
+
+type AppView = 'home' | 'workout' | 'nutrition' | 'progress' | 'profile';
+
+const NAV_ITEMS: {
+  k: AppView;
+  label: string;
+  Icon: React.FC<{ size?: number; strokeWidth?: number }>;
+}[] = [
+  { k: 'home', label: 'Accueil', Icon: Home },
+  { k: 'workout', label: 'Séances', Icon: Dumbbell },
+  { k: 'nutrition', label: 'Nutrition', Icon: Utensils },
+  { k: 'progress', label: 'Progrès', Icon: TrendingUp },
+  { k: 'profile', label: 'Profil', Icon: User },
+];
+
+const BottomNav = ({ active, onNav }: { active: AppView; onNav: (v: AppView) => void }) => (
+  <div className="absolute left-0 right-0 bottom-0 px-3 pb-3 pt-2 z-30 pointer-events-none">
+    <div
+      className="pointer-events-auto rounded-2xl flex items-stretch px-1.5 py-1.5 border"
+      style={{
+        background: 'var(--bg)',
+        borderColor: 'var(--border)',
+      }}
+    >
+      {NAV_ITEMS.map(({ k, label, Icon }) => {
+        const isActive = active === k;
+        return (
+          <button
+            key={k}
+            onClick={() => onNav(k)}
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl transition"
+          >
+            <div
+              className="h-7 w-7 rounded-lg flex items-center justify-center transition"
+              style={
+                isActive
+                  ? { background: 'var(--fg)', color: 'var(--bg)' }
+                  : { color: 'var(--muted)' }
+              }
+            >
+              <Icon size={15} strokeWidth={1.75} />
+            </div>
+            <span
+              className="text-[8.5px] uppercase tracking-[0.16em] font-medium"
+              style={{ color: isActive ? 'var(--fg)' : 'var(--muted)' }}
+            >
+              {label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
+/* ─────────────────────── HomeScreen ─────────────────────── */
+
+interface HomeScreenProps {
+  onNav: (v: AppView) => void;
+  profileGender: 'Homme' | 'Femme' | undefined;
+  completedSessionDates: string[];
+  template: ReturnType<typeof getSessionTemplate>;
+  nutritionTotals: { calories: number; protein: number; carbs: number; fat: number };
+  nutritionTarget: number;
+  currentWeek: number;
+}
+
+const HomeScreen = ({
+  onNav,
+  profileGender,
+  completedSessionDates,
+  template,
+  nutritionTotals,
+  nutritionTarget,
+  currentWeek,
+}: HomeScreenProps) => {
+  const today = new Date();
+  const DAY_LETTERS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+
+  const last7 = Array.from({ length: 7 }).map((_, i) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - 6 + i);
+    const dateStr = date.toISOString().split('T')[0];
+    const done = completedSessionDates.some((d) => d.startsWith(dateStr));
+    return { day: DAY_LETTERS[date.getDay()], done };
+  });
+
+  const remaining = Math.max(0, nutritionTarget - nutritionTotals.calories);
+
+  return (
+    <div className="flex flex-col h-full" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
+      <SHeader
+        title="Accueil"
+        right={
+          <button
+            className="h-10 w-10 -mr-2 flex items-center justify-center rounded-full"
+            style={{ color: 'var(--fg)' }}
+          >
+            <Clock size={18} strokeWidth={1.5} />
+          </button>
+        }
+      />
+      <div className="flex-1 overflow-y-auto pb-28">
+        {/* Date + greeting */}
+        <div className="px-5 mb-5">
+          <NL>
+            {today.toLocaleDateString('fr-FR', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })}
+          </NL>
+          <div className="mt-1 text-[28px] font-medium leading-[1.05] tracking-tight">
+            Bonjour, {profileGender === 'Femme' ? 'Athlète' : 'Champion'}.
+          </div>
+        </div>
+
+        {/* 7-day streak */}
+        <div
+          className="mx-5 mb-5 border rounded-2xl p-4"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <NL>Activité 7 jours</NL>
+            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              {last7.filter((d) => d.done).length} / 7
+            </NN>
+          </div>
+          <div className="grid grid-cols-7 gap-1.5">
+            {last7.map((d, i) => (
+              <div key={i} className="flex flex-col items-center gap-1.5">
+                <div
+                  className="h-9 rounded-md w-full border"
+                  style={
+                    d.done
+                      ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
+                      : { borderColor: 'var(--border)' }
+                  }
+                />
+                <NL className="text-[8px]">{d.day}</NL>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Today's workout */}
+        <button onClick={() => onNav('workout')} className="block w-full text-left px-5 mb-5">
+          <div className="mb-2 flex items-center justify-between">
+            <NL>Séance du jour</NL>
+            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              {template.exercises.length} exercices
+            </NN>
+          </div>
+          <div
+            className="border rounded-2xl p-4 transition hover:opacity-80"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[18px] font-medium leading-tight">{template.title}</div>
+                <NN className="block mt-1 text-[11px]" style={{ color: 'var(--muted)' }}>
+                  {template.mainExercise} · {template.exercises.length} exos
+                </NN>
+              </div>
+              <div
+                className="h-12 w-12 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: 'var(--fg)', color: 'var(--bg)' }}
+              >
+                <Play size={18} strokeWidth={1.75} />
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-4 gap-2">
+              {template.exercises.slice(0, 4).map((e) => (
+                <div
+                  key={e.name}
+                  className="text-center px-2 py-2 rounded-lg border"
+                  style={{ borderColor: 'var(--border)' }}
+                >
+                  <NN className="block text-[10px] font-medium" style={{ color: 'var(--fg)' }}>
+                    {e.name.split(' ')[0]}
+                  </NN>
+                </div>
+              ))}
+            </div>
+          </div>
+        </button>
+
+        {/* Nutrition snapshot */}
+        <button onClick={() => onNav('nutrition')} className="block w-full text-left px-5 mb-5">
+          <div className="mb-2 flex items-center justify-between">
+            <NL>Nutrition</NL>
+            <ChevronRight size={14} style={{ color: 'var(--muted)' }} />
+          </div>
+          <div
+            className="border rounded-2xl p-4 flex items-center gap-4"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+          >
+            <SmallRing pct={nutritionTarget > 0 ? nutritionTotals.calories / nutritionTarget : 0} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-1.5">
+                <NN className="text-[22px] font-medium leading-none" style={{ color: 'var(--fg)' }}>
+                  {nutritionTotals.calories.toLocaleString('fr-FR')}
+                </NN>
+                <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                  / {nutritionTarget.toLocaleString('fr-FR')} kcal
+                </NN>
+              </div>
+              <NN className="block mt-1 text-[10px]" style={{ color: 'var(--muted)' }}>
+                {remaining} restantes
+              </NN>
+              <div className="mt-2 flex gap-1.5">
+                {[
+                  { l: 'P', v: nutritionTotals.protein, shade: 'var(--fg)' },
+                  { l: 'G', v: nutritionTotals.carbs, shade: 'var(--ink-2)' },
+                  { l: 'L', v: nutritionTotals.fat, shade: 'var(--ink-3)' },
+                ].map((m) => (
+                  <div key={m.l} className="flex-1">
+                    <div
+                      className="h-[3px] rounded-full overflow-hidden"
+                      style={{ background: 'var(--surface-2)' }}
+                    >
+                      <div className="h-full" style={{ width: '70%', background: m.shade }} />
+                    </div>
+                    <NN className="block mt-1 text-[9px]" style={{ color: 'var(--muted)' }}>
+                      {m.l} {m.v}g
+                    </NN>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </button>
+
+        {/* Cycle progress */}
+        <div className="px-5">
+          <div className="mb-2 flex items-center justify-between">
+            <NL>Cycle 9 sem.</NL>
+            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              {Math.round((currentWeek / 9) * 100)}%
+            </NN>
+          </div>
+          <div
+            className="border rounded-2xl p-4"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+          >
+            <div className="flex gap-1">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex-1 h-7 rounded-md border"
+                  style={
+                    i < currentWeek - 1
+                      ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
+                      : i === currentWeek - 1
+                        ? { borderColor: 'var(--fg)' }
+                        : { borderColor: 'var(--border)' }
+                  }
+                />
+              ))}
+            </div>
+            <div className="mt-3 flex justify-between">
+              <NN className="text-[9px]" style={{ color: 'var(--muted)' }}>
+                Sem 1
+              </NN>
+              <NN className="text-[9px]" style={{ color: 'var(--muted)' }}>
+                Pic sem 7
+              </NN>
+              <NN className="text-[9px]" style={{ color: 'var(--muted)' }}>
+                Test sem 9
+              </NN>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── WorkoutScreen ─────────────────────── */
+
+interface WorkoutScreenProps {
+  template: ReturnType<typeof getSessionTemplate>;
+  currentWeek: number;
+  currentDay: number;
+  setCurrentWeek: (w: number) => void;
+  setCurrentDay: (d: number) => void;
+  bwInput: number;
+  setBwInput: (v: number) => void;
+  lestInput: number;
+  setLestInput: (v: number) => void;
+  repsInput: number;
+  setRepsInput: (v: number) => void;
+  isDone: boolean;
+  onValidate: () => Promise<void>;
+  loading: boolean;
+}
+
+const WorkoutScreen = ({
+  template,
+  currentWeek,
+  currentDay,
+  setCurrentWeek,
+  setCurrentDay,
+  lestInput,
+  setLestInput,
+  repsInput,
+  setRepsInput,
+  isDone,
+  onValidate,
+  loading,
+}: WorkoutScreenProps) => {
+  const [rest, setRest] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [exIdx, setExIdx] = useState(0);
+  const [history, setHistory] = useState<{ set: number; reps: number; load: number }[]>([]);
+
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setRest((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+
+  const fmt = (s: number) =>
+    `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+  const ex = template.exercises[exIdx];
+
+  const handleValidate = async () => {
+    await onValidate();
+    setHistory((h) => [...h, { set: h.length + 1, reps: repsInput, load: lestInput }]);
+    setRest(0);
+    setRunning(true);
+  };
+
+  return (
+    <div className="flex flex-col h-full" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
+      <SHeader
+        title="Séances"
+        right={
+          <div className="flex items-center gap-1 -mr-2">
+            <span
+              className="h-2 w-2 rounded-full animate-pulse"
+              style={{ background: 'var(--fg)' }}
+            />
+            <NN
+              className="text-[10px] uppercase tracking-[0.18em] pr-2"
+              style={{ color: 'var(--muted)' }}
+            >
+              REC
+            </NN>
+          </div>
+        }
+      />
+      <div className="flex-1 overflow-y-auto pb-28">
+        {/* Week selector */}
+        <div className="px-5 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <NN className="text-[11px]" style={{ color: 'var(--muted)' }}>
+              W{currentWeek} · J{currentDay}
+            </NN>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setCurrentDay(Math.max(1, currentDay - 1))}
+                className="h-8 w-8 rounded-lg flex items-center justify-center border"
+                style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={() => setCurrentDay(Math.min(4, currentDay + 1))}
+                className="h-8 w-8 rounded-lg flex items-center justify-center border"
+                style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-1">
+            {progressionMatrix.slice(0, 9).map((step) => (
+              <div
+                key={step.week}
+                className="flex-1 h-1.5 rounded-full cursor-pointer"
+                style={
+                  currentWeek === step.week
+                    ? { background: 'var(--fg)' }
+                    : currentWeek > step.week
+                      ? { background: 'var(--ink-3)' }
+                      : { background: 'var(--surface-2)' }
+                }
+                onClick={() => setCurrentWeek(step.week)}
+              />
+            ))}
+          </div>
+          <NL className="block mt-2">{template.title}</NL>
+        </div>
+
+        {/* Exercise switcher */}
+        <div className="px-5">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {template.exercises.map((e, i) => (
+              <button
+                key={e.name}
+                onClick={() => setExIdx(i)}
+                className="shrink-0 px-3 h-9 rounded-full border transition"
+                style={
+                  i === exIdx
+                    ? {
+                        background: 'var(--fg)',
+                        color: 'var(--bg)',
+                        borderColor: 'var(--fg)',
+                      }
+                    : { borderColor: 'var(--border)', color: 'var(--muted)' }
+                }
+              >
+                <NN className="text-[11px] font-medium">{e.name}</NN>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Exercise header */}
+        <div className="px-5 mt-5">
+          <NL>
+            Exercice {exIdx + 1}/{template.exercises.length}
+          </NL>
+          <div className="mt-1 flex items-end justify-between">
+            <div>
+              <div className="text-[22px] font-medium leading-tight tracking-tight">{ex?.name}</div>
+              <NN className="block mt-1 text-[11px]" style={{ color: 'var(--muted)' }}>
+                {ex?.sets} × {ex?.reps} ·{' '}
+                {typeof ex?.weight === 'number' ? `+${ex.weight} kg` : ex?.weight}
+              </NN>
+            </div>
+          </div>
+        </div>
+
+        {/* Rest timer */}
+        <div
+          className="mx-5 mt-5 border rounded-2xl p-5"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <NL>Repos</NL>
+            <NL>cible 2:00</NL>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <NN
+              className="text-[64px] font-medium tracking-tight leading-none"
+              style={{ color: 'var(--fg)' }}
+            >
+              {fmt(rest)}
+            </NN>
+            <button
+              onClick={() => setRunning((r) => !r)}
+              className="h-16 w-16 rounded-full flex items-center justify-center active:scale-95 shrink-0"
+              style={{ background: 'var(--fg)', color: 'var(--bg)' }}
+            >
+              {running ? <Pause size={22} /> : <Play size={22} />}
+            </button>
+          </div>
+          <div
+            className="mt-4 h-[3px] rounded-full overflow-hidden"
+            style={{ background: 'var(--surface-2)' }}
+          >
+            <div
+              className="h-full transition-[width] duration-300"
+              style={{
+                width: `${Math.min((rest / 120) * 100, 100)}%`,
+                background: 'var(--fg)',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Big steppers */}
+        <div className="px-5 mt-5 space-y-3">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <NL>Répétitions</NL>
+              <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                cible {ex?.reps}
+              </NN>
+            </div>
+            <Stepper value={repsInput} onChange={setRepsInput} suffix="reps" />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <NL>Charge ajoutée</NL>
+              <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                pas 2,5 kg
+              </NN>
+            </div>
+            <Stepper value={lestInput} onChange={setLestInput} step={2.5} suffix="kg" />
+          </div>
+        </div>
+
+        {/* Oversized validate button */}
+        <div className="px-5 mt-5">
+          <button
+            onClick={handleValidate}
+            disabled={isDone || loading}
+            className="w-full h-20 rounded-2xl flex items-center justify-center gap-3 active:scale-[0.99] transition disabled:opacity-50"
+            style={{ background: 'var(--fg)', color: 'var(--bg)' }}
+          >
+            {loading ? (
+              <Loader2 size={22} className="animate-spin" />
+            ) : (
+              <>
+                <Check size={22} strokeWidth={2.5} />
+                <span className="text-[14px] font-medium uppercase tracking-[0.22em]">
+                  Valider la série
+                </span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Set history */}
+        {history.length > 0 && (
+          <div className="px-5 mt-5">
+            <div className="flex items-center justify-between mb-2">
+              <NL>Séries validées</NL>
+              <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                {history.length}
+              </NN>
+            </div>
+            <div
+              className="border rounded-2xl overflow-hidden"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              {history.map((h, i) => (
+                <div
+                  key={i}
+                  className="px-4 py-3 flex items-center justify-between"
+                  style={{
+                    borderTop: i > 0 ? '1px solid var(--border)' : undefined,
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: 'var(--fg)', color: 'var(--bg)' }}
+                    >
+                      <Check size={12} strokeWidth={2.5} />
+                    </div>
+                    <NN className="text-[12px] font-medium" style={{ color: 'var(--fg)' }}>
+                      Série {h.set}
+                    </NN>
+                  </div>
+                  <div className="flex items-baseline gap-4">
+                    <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
+                      {h.reps}
+                      <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                        {' '}
+                        reps
+                      </span>
+                    </NN>
+                    <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
+                      +{h.load}
+                      <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                        {' '}
+                        kg
+                      </span>
+                    </NN>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── ProgressScreen ─────────────────────── */
+
+interface ProgressScreenProps {
+  exerciseLogs: ExerciseLog[];
+  completedSessions: CompletedSession[];
+  oneRMs: Record<ExerciseType, number>;
+}
+
+const LIFT_MAP: Record<string, ExerciseType> = {
+  traction: 'Tractions',
+  dips: 'Dips',
+  squat: 'Squat',
+};
+
+const ProgressScreen = ({ exerciseLogs, completedSessions, oneRMs }: ProgressScreenProps) => {
+  const [lift, setLift] = useState<'traction' | 'dips' | 'squat'>('traction');
+
+  const sparkData = useMemo(() => {
+    const key = LIFT_MAP[lift];
+    const filtered = exerciseLogs
+      .filter((l) => l.exercise_name === key)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-12)
+      .map((l) => Math.round(l.calculated_1rm * 10) / 10);
+    if (filtered.length >= 2) return filtered;
+    const base = oneRMs[key] || 0;
+    return base > 0 ? [base * 0.9, base] : [0, 1];
+  }, [lift, exerciseLogs, oneRMs]);
+
+  const last1RM = sparkData[sparkData.length - 1];
+  const gain = sparkData.length >= 2 ? last1RM - sparkData[0] : 0;
+
+  const totalVolume = useMemo(
+    () => exerciseLogs.reduce((acc, l) => acc + l.total_weight * l.reps, 0) / 1000,
+    [exerciseLogs]
+  );
+
+  const recentPRs = useMemo(
+    () =>
+      exerciseLogs
+        .filter((l) => l.is_pr)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 4),
+    [exerciseLogs]
+  );
+
+  const sessionDates = completedSessions.map((s) => s.date);
+
+  return (
+    <div className="flex flex-col h-full" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
+      <SHeader title="Progrès" />
+      <div className="flex-1 overflow-y-auto pb-28">
+        {/* Stat row */}
+        <div
+          className="mx-5 mb-5 grid grid-cols-3 border rounded-2xl overflow-hidden"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+        >
+          {[
+            { label: 'Volume', value: totalVolume.toFixed(1), unit: 't', sub: 'total' },
+            {
+              label: 'Séances',
+              value: String(completedSessions.length),
+              unit: '',
+              sub: 'toutes',
+            },
+            {
+              label: 'PRs',
+              value: String(recentPRs.length),
+              unit: '',
+              sub: 'confirmés',
+            },
+          ].map((s, i) => (
+            <div
+              key={s.label}
+              className="px-3 py-3 text-center"
+              style={i > 0 ? { borderLeft: '1px solid var(--border)' } : undefined}
+            >
+              <div className="flex items-baseline justify-center gap-1">
+                <NN className="text-[20px] font-medium leading-none" style={{ color: 'var(--fg)' }}>
+                  {s.value}
+                </NN>
+                {s.unit && <NL className="text-[9px]">{s.unit}</NL>}
+              </div>
+              <div className="mt-1.5">
+                <NL className="text-[8px] tracking-[0.22em]">{s.label}</NL>
+              </div>
+              <NN className="block mt-0.5 text-[9px]" style={{ color: 'var(--muted)' }}>
+                {s.sub}
+              </NN>
+            </div>
+          ))}
+        </div>
+
+        {/* 1RM sparkline */}
+        <div
+          className="mx-5 mb-5 border rounded-2xl p-5"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <NL>1RM estimé · 12 sem.</NL>
+            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              {gain >= 0 ? '+' : ''}
+              {gain.toFixed(1)} kg
+            </NN>
+          </div>
+          <div className="flex items-baseline gap-2 mb-3">
+            <NN
+              className="text-[36px] font-medium tracking-tight leading-none"
+              style={{ color: 'var(--fg)' }}
+            >
+              {last1RM}
+            </NN>
+            <NL>kg</NL>
+          </div>
+          <SparkLine data={sparkData} />
+          <div
+            className="mt-3 flex gap-1 border rounded-xl p-1"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            {[
+              { k: 'traction', l: 'Traction' },
+              { k: 'dips', l: 'Dips' },
+              { k: 'squat', l: 'Squat' },
+            ].map((o) => (
+              <button
+                key={o.k}
+                onClick={() => setLift(o.k as 'traction' | 'dips' | 'squat')}
+                className="flex-1 h-8 rounded-lg text-[11px] font-medium transition"
+                style={
+                  lift === o.k
+                    ? { background: 'var(--fg)', color: 'var(--bg)' }
+                    : { color: 'var(--muted)' }
+                }
+              >
+                {o.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Heatmap */}
+        <div
+          className="mx-5 mb-5 border rounded-2xl p-5"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <NL>Régularité</NL>
+            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              {completedSessions.length} séances
+            </NN>
+          </div>
+          <Heatmap sessionDates={sessionDates} />
+        </div>
+
+        {/* PR list */}
+        {recentPRs.length > 0 && (
+          <div className="mx-5 mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <NL>Records récents</NL>
+            </div>
+            <div
+              className="border rounded-2xl overflow-hidden"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              {recentPRs.map((r, i) => (
+                <div
+                  key={r.id || i}
+                  className="px-4 py-3 flex items-center justify-between"
+                  style={{
+                    borderTop: i > 0 ? '1px solid var(--border)' : undefined,
+                  }}
+                >
+                  <div>
+                    <NN className="block text-[13px] font-medium" style={{ color: 'var(--fg)' }}>
+                      {r.exercise_name}
+                    </NN>
+                    <NN className="block mt-0.5 text-[10px]" style={{ color: 'var(--muted)' }}>
+                      {r.date
+                        ? new Date(r.date).toLocaleDateString('fr-FR', {
+                            day: 'numeric',
+                            month: 'short',
+                          })
+                        : ''}
+                    </NN>
+                  </div>
+                  <NN className="text-[16px] font-medium" style={{ color: 'var(--fg)' }}>
+                    {Math.round(r.calculated_1rm * 10) / 10} kg
+                  </NN>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── ProfileScreen ─────────────────────── */
+
+const SKINS_META = [
+  { k: 'mono' as SkinKey, l: 'Mono', sw: ['#ffffff', '#0f0f0e', '#8a8884'] },
+  { k: 'carbon' as SkinKey, l: 'Carbon', sw: ['#0f0f0e', '#f7f6f3', '#7c7a76'] },
+  { k: 'sand' as SkinKey, l: 'Sand', sw: ['#f6f3ec', '#191813', '#8a8472'] },
+];
+
+interface ProfileScreenProps {
+  profile: UserProfile | null;
+  bodyWeight: number;
+  oneRMs: Record<ExerciseType, number>;
+  skin: SkinKey;
+  onSkin: (s: SkinKey) => void;
+  onLogout: () => void;
+  onUpdateProfile: (updates: {
+    birth_date?: string;
+    height?: number;
+    gender?: 'Homme' | 'Femme';
+    goal_program?: string;
+    activity_level?: number;
+  }) => Promise<void>;
+}
+
+const ProfileScreen = ({
+  profile,
+  bodyWeight,
+  oneRMs,
+  skin,
+  onSkin,
+  onLogout,
+  onUpdateProfile,
+}: ProfileScreenProps) => {
+  const [editMode, setEditMode] = useState(false);
+  const [editBirthDate, setEditBirthDate] = useState(profile?.birth_date || '2000-01-01');
+  const [editHeight, setEditHeight] = useState(profile?.height || 180);
+  const [editGender, setEditGender] = useState<'Homme' | 'Femme'>(profile?.gender || 'Homme');
+  const [editGoal, setEditGoal] = useState(profile?.goal_program || 'maintain');
+  const [editActivity, setEditActivity] = useState(profile?.activity_level || 1.55);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!profile) return;
+    const t = setTimeout(() => {
+      setEditBirthDate(profile.birth_date || '2000-01-01');
+      setEditHeight(profile.height);
+      setEditGender(profile.gender);
+      setEditGoal(profile.goal_program);
+      setEditActivity(profile.activity_level || 1.55);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [profile]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onUpdateProfile({
+        birth_date: editBirthDate,
+        height: editHeight,
+        gender: editGender,
+        goal_program: editGoal,
+        activity_level: editActivity,
+      });
+      toast.success('Profil mis à jour');
+      setEditMode(false);
+    } catch {
+      toast.error('Erreur lors de la mise à jour');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const initial = profile?.gender === 'Femme' ? 'F' : 'A';
+  const age = calculateAge(profile?.birth_date || '');
+
+  return (
+    <div className="flex flex-col h-full" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
+      <SHeader
+        title="Profil"
+        right={
+          <button
+            onClick={onLogout}
+            className="h-10 w-10 -mr-2 flex items-center justify-center rounded-full transition hover:opacity-70"
+            style={{ color: 'var(--muted)' }}
+            aria-label="Se déconnecter"
+          >
+            <LogOut size={16} strokeWidth={1.75} />
+          </button>
+        }
+      />
+      <div className="flex-1 overflow-y-auto pb-28">
+        {/* Identity */}
+        <div className="px-5 mb-5 flex items-center gap-4">
+          <div
+            className="h-16 w-16 rounded-2xl border flex items-center justify-center shrink-0"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+          >
+            <NN className="text-[22px] font-medium" style={{ color: 'var(--fg)' }}>
+              {initial}
+            </NN>
+          </div>
+          <div>
+            <div className="text-[20px] font-medium leading-tight">
+              {profile?.gender === 'Femme' ? 'Athlète' : 'Champion'}
+            </div>
+            <NN className="block mt-0.5 text-[11px]" style={{ color: 'var(--muted)' }}>
+              {profile?.onboarding_completed ? 'profil complet' : 'en cours'} · {bodyWeight} kg
+            </NN>
+          </div>
+        </div>
+
+        {/* Mensurations */}
+        <div className="px-5 mb-2">
+          <NL>Mensurations</NL>
+        </div>
+        <div
+          className="mx-5 mb-5 border rounded-2xl overflow-hidden"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+        >
+          {[
+            { label: 'Poids', value: String(bodyWeight), unit: 'kg' },
+            { label: 'Taille', value: String(profile?.height || '—'), unit: 'cm' },
+            { label: 'Âge', value: age > 0 ? String(age) : '—', unit: 'ans' },
+            { label: 'Sexe', value: profile?.gender || '—', unit: undefined },
+          ].map(({ label, value, unit }, i) => (
+            <div
+              key={label}
+              className="flex items-center justify-between px-4 py-3.5"
+              style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
+            >
+              <NL>{label}</NL>
+              <div className="flex items-baseline gap-1">
+                <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
+                  {value}
+                </NN>
+                {unit && <NL className="text-[9px]">{unit}</NL>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 1RM baselines */}
+        <div className="px-5 mb-2">
+          <NL>Baselines 1RM</NL>
+        </div>
+        <div
+          className="mx-5 mb-5 border rounded-2xl overflow-hidden"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+        >
+          {(
+            [
+              { label: 'Traction lestée', key: 'Tractions' },
+              { label: 'Dips lestés', key: 'Dips' },
+              { label: 'Squat', key: 'Squat' },
+              { label: 'Muscle-up', key: 'Muscle-up' },
+            ] as { label: string; key: ExerciseType }[]
+          ).map(({ label, key }, i) => (
+            <div
+              key={key}
+              className="flex items-center justify-between px-4 py-3.5"
+              style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
+            >
+              <NL>{label}</NL>
+              <div className="flex items-baseline gap-1">
+                <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
+                  {Math.round(oneRMs[key])}
+                </NN>
+                <NL className="text-[9px]">kg</NL>
+                <Pencil size={12} className="ml-2" style={{ color: 'var(--muted)' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Skin switcher */}
+        <div className="px-5 mb-2 flex items-center justify-between">
+          <NL>Thème</NL>
+          <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+            global
+          </NN>
+        </div>
+        <div className="mx-5 mb-5 grid grid-cols-3 gap-2">
+          {SKINS_META.map((s) => {
+            const active = skin === s.k;
+            return (
+              <button
+                key={s.k}
+                onClick={() => onSkin(s.k)}
+                className="p-3 rounded-2xl border transition text-left"
+                style={{ borderColor: active ? 'var(--fg)' : 'var(--border)' }}
+              >
+                <div className="flex gap-1.5 mb-2">
+                  {s.sw.map((c, i) => (
+                    <div
+                      key={i}
+                      className="h-6 flex-1 rounded-md border"
+                      style={{ background: c, borderColor: 'var(--border)' }}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center justify-between">
+                  <NN className="text-[11px] font-medium" style={{ color: 'var(--fg)' }}>
+                    {s.l}
+                  </NN>
+                  {active && <Check size={12} strokeWidth={2.5} style={{ color: 'var(--fg)' }} />}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Edit toggle */}
+        <div className="px-5 mb-2 flex items-center justify-between">
+          <NL>Paramètres</NL>
+          <button
+            onClick={() => setEditMode((v) => !v)}
+            className="text-[10px] font-medium uppercase tracking-[0.16em] transition hover:opacity-70"
+            style={{ color: 'var(--fg)' }}
+          >
+            {editMode ? 'Annuler' : 'Modifier'}
+          </button>
+        </div>
+
+        {editMode && (
+          <div
+            className="mx-5 mb-5 border rounded-2xl p-5 space-y-4"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
+                <NL>Taille</NL>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <input
+                    type="number"
+                    value={editHeight}
+                    onChange={(e) => setEditHeight(Number(e.target.value) || 0)}
+                    className="bg-transparent outline-none font-mono tabular-nums text-[20px] font-medium w-full"
+                    style={{ color: 'var(--fg)' }}
+                  />
+                  <NL className="text-[9px]">cm</NL>
+                </div>
+              </div>
+              <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
+                <NL>Sexe</NL>
+                <div className="mt-2 flex gap-1">
+                  {(['Homme', 'Femme'] as const).map((g) => (
+                    <button
+                      key={g}
+                      onClick={() => setEditGender(g)}
+                      className="flex-1 h-8 rounded-lg text-[12px] font-medium transition"
+                      style={
+                        editGender === g
+                          ? { background: 'var(--fg)', color: 'var(--bg)' }
+                          : { color: 'var(--muted)', border: '1px solid var(--border)' }
+                      }
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <NL className="mb-2 block">Objectif</NL>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { k: 'cut', l: 'Sèche' },
+                  { k: 'maintain', l: 'Maintien' },
+                  { k: 'bulk', l: 'Prise' },
+                ].map((g) => (
+                  <button
+                    key={g.k}
+                    onClick={() => setEditGoal(g.k)}
+                    className="h-11 rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
+                    style={
+                      editGoal === g.k
+                        ? {
+                            background: 'var(--fg)',
+                            color: 'var(--bg)',
+                            borderColor: 'var(--fg)',
+                          }
+                        : { borderColor: 'var(--border)', color: 'var(--muted)' }
+                    }
+                  >
+                    {g.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <NL className="mb-2 block">Activité</NL>
+              <div className="space-y-2">
+                {[
+                  { v: 1.2, l: 'Sédentaire', s: '0 séance' },
+                  { v: 1.55, l: 'Modéré', s: '1–3 séances' },
+                  { v: 1.75, l: 'Très actif', s: '4+ séances' },
+                ].map((a) => {
+                  const active = Math.abs(editActivity - a.v) < 0.01;
+                  return (
+                    <button
+                      key={a.v}
+                      onClick={() => setEditActivity(a.v)}
+                      className="w-full h-12 px-4 rounded-xl border flex items-center justify-between transition"
+                      style={{ borderColor: active ? 'var(--fg)' : 'var(--border)' }}
+                    >
+                      <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>
+                        {a.l}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                          {a.s}
+                        </NN>
+                        <span
+                          className="h-3.5 w-3.5 rounded-full border"
+                          style={
+                            active
+                              ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
+                              : { borderColor: 'var(--border)' }
+                          }
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <NL className="mb-1.5 block">Date de naissance</NL>
+              <input
+                type="date"
+                value={editBirthDate}
+                onChange={(e) => setEditBirthDate(e.target.value)}
+                className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[15px] font-medium"
+                style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
+              />
+            </div>
+
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] disabled:opacity-50"
+              style={{ background: 'var(--fg)', color: 'var(--bg)' }}
+            >
+              {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Enregistrer'}
+            </button>
+          </div>
+        )}
+
+        <div className="px-5 mb-6">
+          <button
+            onClick={onLogout}
+            className="w-full h-12 rounded-2xl border text-[11px] font-medium uppercase tracking-[0.22em] transition hover:opacity-70"
+            style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+          >
+            Se déconnecter
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── Main App ─────────────────────── */
 
 export default function App() {
   const router = useRouter();
-  const [hasMounted, setHasMounted] = useState(false);
+
   const {
     profile,
     exerciseLogs,
@@ -69,17 +1403,16 @@ export default function App() {
     fetchProfile,
     fetchTrainingLogs,
     updatePerformance,
-    updateLogFeedback,
-    updateBodyweight,
     updateProfile,
     signOut,
   } = useStore();
 
-  const [currentView, setCurrentView] = useState<'home' | 'sessions' | 'progression' | 'profile'>(
-    'home'
-  );
+  const { meals } = useNutritionStore();
 
-  // Training State
+  const [hasMounted, setHasMounted] = useState(false);
+  const [currentView, setCurrentView] = useState<AppView>('home');
+
+  // Training state
   const [bwInput, setBwInput] = useState(75);
   const [lestInput, setLestInput] = useState(0);
   const [repsInput, setRepsInput] = useState(5);
@@ -87,99 +1420,25 @@ export default function App() {
   const [currentDay, setCurrentDay] = useState(1);
   const [isDone, setIsDone] = useState(false);
 
-  // Profile State
-  const [isWeightDialogOpen, setIsWeightDialogOpen] = useState(false);
-  const [isEditingSettings, setIsEditingSettings] = useState(false);
-  const [newBw, setNewBw] = useState(75);
-  const [editBirthDate, setEditBirthDate] = useState('2000-01-01');
-  const [editHeight, setEditHeight] = useState(180);
-  const [editGoal, setEditGoal] = useState('maintain');
-  const [editGender, setEditGender] = useState<'Homme' | 'Femme'>('Homme');
-  const [editActivity, setEditActivity] = useState(1.55);
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  // Skin state
+  const [skin, setSkinState] = useState<SkinKey>('mono');
 
+  // Hydrate skin from localStorage on mount
   useEffect(() => {
-    if (profile) {
-      // On décale légèrement pour éviter le rendu en cascade selon les règles du projet
-      setTimeout(() => {
-        setEditBirthDate(profile.birth_date || '2000-01-01');
-        setEditHeight(profile.height);
-        setEditGoal(profile.goal_program);
-        setEditGender(profile.gender);
-        setEditActivity(profile.activity_level || 1.55);
-      }, 0);
+    const stored = localStorage.getItem(SKIN_STORAGE_KEY) as SkinKey | null;
+    if (stored && stored in SKINS) {
+      const t = setTimeout(() => setSkinState(stored as SkinKey), 0);
+      return () => clearTimeout(t);
     }
-  }, [profile]);
-
-  const handleUpdateProfile = async () => {
-    setIsSavingProfile(true);
-    try {
-      await updateProfile({
-        birth_date: editBirthDate,
-        height: editHeight,
-        goal_program: editGoal,
-        gender: editGender,
-        activity_level: editActivity,
-      });
-      toast.success('Profil mis à jour');
-      setIsEditingSettings(false);
-    } catch {
-      toast.error('Erreur lors de la mise à jour');
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
-
-  // Timer & Feedback State
-  const [currentLogId, setCurrentLogId] = useState<string | null>(null);
-  const [timerSeconds, setTimerSeconds] = useState(120);
-  const [isTimerActive, setIsTimerActive] = useState(false);
-  const [rpeInput, setRpeInput] = useState<number>(8);
-  const [tagsInput, setTagsInput] = useState<string[]>([]);
-  const [showFeedback, setShowFeedback] = useState(false);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (isTimerActive && timerSeconds > 0) {
-      interval = setInterval(() => setTimerSeconds((prev) => prev - 1), 1000);
-    } else if (timerSeconds === 0 && isTimerActive) {
-      // On décale légèrement la mise à jour d'état pour éviter le rendu en cascade
-      setTimeout(() => {
-        setIsTimerActive(false);
-        toast.info('Fin du repos ! À toi de jouer !');
-      }, 0);
-    }
-
-    return () => clearInterval(interval);
-  }, [isTimerActive, timerSeconds]);
-
-  // Continuous adjustment logic
-  const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
-  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  const startAdjusting = (adjustFn: () => void) => {
-    adjustFn();
-    timeoutRef.current = setTimeout(() => {
-      intervalRef.current = setInterval(adjustFn, 80);
-    }, 500);
-  };
-
-  const stopAdjusting = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-  };
-
-  useEffect(() => {
-    return () => stopAdjusting();
   }, []);
 
-  const [quote, setQuote] = useState(motivationalMessages[0]);
+  // Apply skin CSS vars whenever skin changes
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setQuote(motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)]);
-  }, []);
+    applySkin(skin);
+    localStorage.setItem(SKIN_STORAGE_KEY, skin);
+  }, [skin]);
 
+  // Auth check
   useEffect(() => {
     const checkUser = async () => {
       const {
@@ -196,14 +1455,13 @@ export default function App() {
   }, [fetchProfile, router]);
 
   useEffect(() => {
-    if (profile) {
-      fetchTrainingLogs();
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setBwInput(profile.body_weight);
-
-      setNewBw(profile.body_weight);
-    }
+    if (!profile) return;
+    fetchTrainingLogs();
+    const t = setTimeout(() => setBwInput(profile.body_weight), 0);
+    return () => clearTimeout(t);
   }, [profile, fetchTrainingLogs]);
+
+  const bodyWeight = profile?.body_weight || 75;
 
   const oneRMs = useMemo(
     () => ({
@@ -215,28 +1473,87 @@ export default function App() {
     [profile]
   );
 
-  const bodyWeight = profile?.body_weight || 75;
+  const template = useMemo(
+    () => getSessionTemplate(currentWeek, currentDay, oneRMs, bodyWeight),
+    [currentWeek, currentDay, oneRMs, bodyWeight]
+  );
 
-  const template = useMemo(() => {
-    return getSessionTemplate(currentWeek, currentDay, oneRMs, bodyWeight);
-  }, [currentWeek, currentDay, oneRMs, bodyWeight]);
-
+  // Sync lest/reps to template main exercise
+  const prevTemplateRef = useRef(template);
   useEffect(() => {
+    if (prevTemplateRef.current === template) return;
+    prevTemplateRef.current = template;
     const main = template.exercises.find((e) => e.isMain);
-    if (main && typeof main.weight === 'number') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLestInput(main.weight);
-
-      setRepsInput(parseInt(main.reps));
-    }
-
-    setIsDone(false);
+    const t = setTimeout(() => {
+      if (main && typeof main.weight === 'number') setLestInput(main.weight);
+      setRepsInput(parseInt(main?.reps ?? '5'));
+      setIsDone(false);
+    }, 0);
+    return () => clearTimeout(t);
   }, [template]);
+
+  const handleValidateMain = async () => {
+    await updatePerformance(
+      template.mainExercise,
+      bwInput,
+      lestInput,
+      repsInput,
+      8,
+      [],
+      currentWeek,
+      currentDay
+    );
+    setIsDone(true);
+  };
+
+  // Nutrition targets
+  const nutritionTargets = useMemo(
+    () =>
+      calculateTargets(
+        profile?.height || 180,
+        calculateAge(profile?.birth_date || ''),
+        profile?.gender || 'Homme',
+        profile?.activity_level || 1.55,
+        profile?.goal_program || 'maintain',
+        bodyWeight
+      ),
+    [profile, bodyWeight]
+  );
+
+  const nutritionTotals = useMemo(
+    () =>
+      meals.reduce(
+        (a, m) => ({
+          calories: a.calories + m.calories,
+          protein: a.protein + m.macros.protein,
+          carbs: a.carbs + m.macros.carbs,
+          fat: a.fat + m.macros.fat,
+        }),
+        { calories: 0, protein: 0, carbs: 0, fat: 0 }
+      ),
+    [meals]
+  );
+
+  const handleNav = (view: AppView) => {
+    if (view === 'nutrition') {
+      router.push('/nutrition/scanner');
+    } else {
+      setCurrentView(view);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    router.push('/login');
+  };
 
   if (!hasMounted || loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: 'var(--bg)' }}
+      >
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--fg)' }} />
       </div>
     );
   }
@@ -249,1053 +1566,66 @@ export default function App() {
     );
   }
 
-  const handleValidateMain = async () => {
-    const { isPR, new1RM, logId } = await updatePerformance(
-      template.mainExercise,
-      bwInput,
-      lestInput,
-      repsInput,
-      8,
-      [],
-      currentWeek,
-      currentDay
-    );
-
-    if (isPR) {
-      toast.success('NOUVEAU RECORD !', {
-        description: `${template.mainExercise} : ${Math.round(new1RM * 10) / 10}kg 🔥`,
-        className: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-      });
-    } else {
-      toast.info('Performance validée');
-    }
-
-    setCurrentLogId(logId);
-    setIsDone(true);
-    setTimerSeconds(120);
-    setIsTimerActive(true);
-    setShowFeedback(true);
-    setRpeInput(8);
-    setTagsInput([]);
-  };
-
-  const submitFeedback = async () => {
-    if (currentLogId) {
-      await updateLogFeedback(currentLogId, rpeInput, tagsInput);
-      toast.success('Feedback enregistré');
-    }
-    setShowFeedback(false);
-  };
-
-  const handleUpdateBw = async () => {
-    await updateBodyweight(newBw);
-    setBwInput(newBw);
-    setIsWeightDialogOpen(false);
-    toast.success('Poids mis à jour');
-  };
-
-  const handleLogout = async () => {
-    await signOut();
-    router.push('/login');
-  };
+  const completedSessionDates = completedSessions.map((s) => s.date);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-28">
-      {/* Top Nav */}
-      <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-100 px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-lg font-black tracking-tight italic uppercase">
-            Street <span className="text-blue-600">Flow</span>
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={handleLogout}
-          className="text-slate-400 hover:text-red-500"
-        >
-          <LogOut className="w-4 h-4" />
-        </Button>
-      </nav>
+    <div
+      className="min-h-screen"
+      style={{
+        background: 'var(--bg)',
+        fontFamily: 'var(--font-geist, ui-sans-serif, system-ui, sans-serif)',
+      }}
+    >
+      <div className="relative w-full max-w-md mx-auto" style={{ height: '100svh' }}>
+        {currentView === 'home' && (
+          <HomeScreen
+            onNav={handleNav}
+            profileGender={profile?.gender}
+            completedSessionDates={completedSessionDates}
+            template={template}
+            nutritionTotals={nutritionTotals}
+            nutritionTarget={nutritionTargets.targetCalories}
+            currentWeek={currentWeek}
+          />
+        )}
+        {currentView === 'workout' && (
+          <WorkoutScreen
+            template={template}
+            currentWeek={currentWeek}
+            currentDay={currentDay}
+            setCurrentWeek={setCurrentWeek}
+            setCurrentDay={setCurrentDay}
+            bwInput={bwInput}
+            setBwInput={setBwInput}
+            lestInput={lestInput}
+            setLestInput={setLestInput}
+            repsInput={repsInput}
+            setRepsInput={setRepsInput}
+            isDone={isDone}
+            onValidate={handleValidateMain}
+            loading={loading}
+          />
+        )}
+        {currentView === 'progress' && (
+          <ProgressScreen
+            exerciseLogs={exerciseLogs}
+            completedSessions={completedSessions}
+            oneRMs={oneRMs}
+          />
+        )}
+        {currentView === 'profile' && (
+          <ProfileScreen
+            profile={profile}
+            bodyWeight={bodyWeight}
+            oneRMs={oneRMs}
+            skin={skin}
+            onSkin={setSkinState}
+            onLogout={handleLogout}
+            onUpdateProfile={updateProfile}
+          />
+        )}
 
-      <main className="px-4 py-6 max-w-lg mx-auto">
-        <AnimatePresence mode="wait">
-          {currentView === 'home' && (
-            <motion.div
-              key="home"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
-            >
-              {/* Welcome & Motivation */}
-              <div className="space-y-2">
-                <h1 className="text-3xl font-black text-slate-900 uppercase italic leading-tight">
-                  Salut Champion !
-                </h1>
-                <div className="bg-blue-600 rounded-3xl p-6 text-white shadow-xl shadow-blue-500/20 relative overflow-hidden">
-                  <Quote className="absolute -right-4 -top-4 w-24 h-24 text-white/10" />
-                  <p className="relative z-10 font-bold italic text-lg leading-snug">
-                    &quot;{quote}&quot;
-                  </p>
-                </div>
-              </div>
-
-              {/* Today's Preview */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2">
-                    <CalendarDays className="w-3 h-3" /> Aujourd&apos;hui
-                  </h2>
-                  <Badge className="bg-blue-50 text-blue-600 border-none font-black text-[9px] uppercase tracking-tighter">
-                    W{currentWeek} • J{currentDay}
-                  </Badge>
-                </div>
-
-                <Card
-                  className="bg-white border-slate-100 rounded-[2rem] shadow-sm overflow-hidden"
-                  onClick={() => setCurrentView('sessions')}
-                >
-                  <CardContent className="p-6 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-2xl font-black text-slate-900 uppercase italic">
-                        {template.title}
-                      </p>
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1 text-slate-400">
-                          <Target className="w-3 h-3" />
-                          <span className="text-[10px] font-bold uppercase">
-                            {template.mainExercise}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 text-slate-400">
-                          <Dumbbell className="w-3 h-3" />
-                          <span className="text-[10px] font-bold uppercase">
-                            {template.exercises.length} Exos
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center group-hover:bg-blue-50 transition-colors">
-                      <ChevronRight className="w-6 h-6 text-slate-300 group-hover:text-blue-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Jauge de Standard */}
-              <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
-                    <Trophy className="w-4 h-4 text-amber-500" /> Standard Street Lifting
-                  </h3>
-                  <span className="text-[10px] font-bold text-slate-400">
-                    Basé sur les Tractions
-                  </span>
-                </div>
-
-                {(() => {
-                  const ratio = bodyWeight > 0 ? oneRMs['Tractions'] / bodyWeight : 0;
-                  const pct = Math.min(100, Math.max(0, (ratio / 1.8) * 100)); // Max elite is around 1.8
-                  let label = 'Débutant';
-                  let color = 'bg-slate-300';
-                  if (ratio >= 1.3 && ratio < 1.6) {
-                    label = 'Intermédiaire';
-                    color = 'bg-blue-500';
-                  } else if (ratio >= 1.6) {
-                    label = 'Élite';
-                    color = 'bg-amber-500';
-                  }
-
-                  return (
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-end">
-                        <span className="text-2xl font-black text-slate-800 italic">
-                          {Math.round(ratio * 100) / 100}x{' '}
-                          <span className="text-xs font-bold text-slate-400 not-italic">PDC</span>
-                        </span>
-                        <Badge
-                          className={`${color} text-white border-none font-black text-[9px] uppercase tracking-widest px-3 py-1`}
-                        >
-                          {label}
-                        </Badge>
-                      </div>
-                      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${pct}%` }}
-                          transition={{ duration: 1, ease: 'easeOut' }}
-                          className={`h-full ${color} rounded-full`}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[8px] font-bold text-slate-400 uppercase tracking-widest px-1">
-                        <span>1.0</span>
-                        <span>1.3 (Int.)</span>
-                        <span>1.6 (Élite)</span>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Quick Stats */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 bg-amber-50 rounded-lg flex items-center justify-center">
-                      <Zap className="w-3 h-3 text-amber-500 fill-current" />
-                    </div>
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                      Total Sessions
-                    </span>
-                  </div>
-                  <p className="text-3xl font-black text-slate-800">{completedSessions.length}</p>
-                </div>
-                <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 bg-emerald-50 rounded-lg flex items-center justify-center">
-                      <BarChart3 className="w-3 h-3 text-emerald-500" />
-                    </div>
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                      Moyenne 1RM
-                    </span>
-                  </div>
-                  <p className="text-3xl font-black text-slate-800">
-                    {exerciseLogs.length > 0
-                      ? Math.round(
-                          exerciseLogs.reduce((acc, log) => acc + log.calculated_1rm, 0) /
-                            exerciseLogs.length
-                        )
-                      : 0}
-                    <span className="text-sm font-bold ml-1">kg</span>
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {currentView === 'sessions' && (
-            <motion.div
-              key="sessions"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-8"
-            >
-              {/* Training Logic (Existing) */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Badge className="bg-blue-600/10 text-blue-600 border-none px-2 py-0.5 font-bold text-[10px] uppercase tracking-wider">
-                      Programme Force • W{currentWeek} • J{currentDay}
-                    </Badge>
-                    <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-tight">
-                      {template.title}
-                    </h2>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-9 w-9 rounded-xl border-slate-100"
-                      onClick={() => setCurrentDay(Math.max(1, currentDay - 1))}
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-9 w-9 rounded-xl border-slate-100"
-                      onClick={() => setCurrentDay(Math.min(4, currentDay + 1))}
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex gap-1">
-                  {progressionMatrix.slice(0, 9).map((step) => (
-                    <div
-                      key={step.week}
-                      className={`h-1.5 flex-1 rounded-full transition-all cursor-pointer ${
-                        currentWeek === step.week
-                          ? 'bg-blue-600'
-                          : currentWeek > step.week
-                            ? 'bg-blue-200'
-                            : 'bg-slate-200'
-                      }`}
-                      onClick={() => setCurrentWeek(step.week)}
-                    />
-                  ))}
-                </div>
-
-                <Card className="bg-white border-slate-100 shadow-xl shadow-blue-500/5 rounded-[2.5rem] overflow-hidden">
-                  <div className="bg-blue-600 px-6 py-4 flex justify-between items-center">
-                    <span className="text-white font-black uppercase italic text-[10px] flex items-center gap-2 tracking-[0.2em]">
-                      <Target className="w-4 h-4" /> Exercice Principal
-                    </span>
-                    <span className="text-[10px] text-blue-100 font-bold uppercase tracking-wider">
-                      Base: {Math.round(oneRMs[template.mainExercise])}kg
-                    </span>
-                  </div>
-
-                  <CardContent className="p-6 space-y-6">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-2xl font-black text-slate-900 uppercase italic">
-                          {template.mainExercise}
-                        </h3>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                          Objectif :{' '}
-                          {Math.round(
-                            (progressionMatrix.find((s) => s.week === currentWeek)?.pct || 0) * 100
-                          )}
-                          % d&apos;intensité
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-4xl font-black text-blue-600 tracking-tighter">
-                          {lestInput}kg
-                        </span>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                          Cible Lest
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      {[
-                        {
-                          label: 'Poids de Corps',
-                          value: bwInput,
-                          setter: setBwInput,
-                          step: 0.5,
-                          unit: 'kg',
-                        },
-                        {
-                          label: 'Lest Réel',
-                          value: lestInput,
-                          setter: setLestInput,
-                          step: 0.5,
-                          unit: 'kg',
-                        },
-                        {
-                          label: 'Reps Réelles',
-                          value: repsInput,
-                          setter: setRepsInput,
-                          step: 1,
-                          unit: '',
-                        },
-                      ].map((field) => (
-                        <div
-                          key={field.label}
-                          className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100/50 flex items-center justify-between"
-                        >
-                          <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                            {field.label}
-                          </Label>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-10 w-10 rounded-xl bg-white shadow-sm border-slate-200"
-                              onMouseDown={() =>
-                                startAdjusting(() => field.setter((prev) => prev - field.step))
-                              }
-                              onMouseUp={stopAdjusting}
-                              onMouseLeave={stopAdjusting}
-                              onTouchStart={(e) => {
-                                e.preventDefault();
-                                startAdjusting(() => field.setter((prev) => prev - field.step));
-                              }}
-                              onTouchEnd={stopAdjusting}
-                            >
-                              <Minus className="w-4 h-4 text-slate-600" />
-                            </Button>
-                            <div className="w-20 text-center">
-                              <Input
-                                type="number"
-                                value={field.value ?? 0}
-                                onChange={(e) => field.setter(parseFloat(e.target.value) || 0)}
-                                className="text-xl font-black text-slate-800 text-center border-none shadow-none focus-visible:ring-0 p-0 h-auto bg-transparent"
-                              />
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-10 w-10 rounded-xl bg-white shadow-sm border-slate-200"
-                              onMouseDown={() =>
-                                startAdjusting(() => field.setter((prev) => prev + field.step))
-                              }
-                              onMouseUp={stopAdjusting}
-                              onMouseLeave={stopAdjusting}
-                              onTouchStart={(e) => {
-                                e.preventDefault();
-                                startAdjusting(() => field.setter((prev) => prev + field.step));
-                              }}
-                              onTouchEnd={stopAdjusting}
-                            >
-                              <Plus className="w-4 h-4 text-slate-600" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <AnimatePresence mode="wait">
-                      {!showFeedback ? (
-                        <motion.div
-                          key="valider"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                        >
-                          <Button
-                            onClick={handleValidateMain}
-                            disabled={isDone || loading}
-                            className="w-full h-16 rounded-[1.25rem] bg-blue-600 hover:bg-blue-700 text-white font-black text-xl uppercase italic shadow-lg shadow-blue-500/20 transition-all active:scale-95"
-                          >
-                            {loading ? (
-                              <Loader2 className="w-6 h-6 animate-spin" />
-                            ) : isDone ? (
-                              <Check className="w-6 h-6" />
-                            ) : (
-                              'Valider la série'
-                            )}
-                          </Button>
-                        </motion.div>
-                      ) : (
-                        <motion.div
-                          key="feedback"
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="space-y-4 pt-2 overflow-hidden"
-                        >
-                          {/* Timer */}
-                          <div className="bg-slate-900 rounded-[1.5rem] p-5 flex items-center justify-between text-white shadow-xl shadow-slate-900/10">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center">
-                                <Clock className="w-5 h-5 text-blue-400" />
-                              </div>
-                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                                Temps de Repos
-                              </span>
-                            </div>
-                            <span className="text-4xl font-black italic tracking-tighter">
-                              {Math.floor(timerSeconds / 60)}:
-                              {(timerSeconds % 60).toString().padStart(2, '0')}
-                            </span>
-                          </div>
-
-                          {/* Feedback */}
-                          <div className="bg-slate-50 rounded-[1.5rem] p-5 space-y-4 border border-slate-100">
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em] flex items-center gap-2">
-                                <Activity className="w-3 h-3 text-amber-500" /> Difficulté (RPE)
-                              </Label>
-                              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
-                                {[6, 7, 8, 8.5, 9, 9.5, 10].map((rpe) => (
-                                  <Button
-                                    key={rpe}
-                                    variant={rpeInput === rpe ? 'default' : 'outline'}
-                                    onClick={() => setRpeInput(rpe)}
-                                    className={cn(
-                                      'rounded-[1rem] min-w-[3.5rem] h-12 font-black text-sm transition-all',
-                                      rpeInput === rpe
-                                        ? 'bg-amber-500 hover:bg-amber-600 border-none text-white shadow-lg shadow-amber-500/20 scale-105'
-                                        : 'bg-white text-slate-400 border-slate-200'
-                                    )}
-                                  >
-                                    {rpe}
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em] flex items-center gap-2">
-                                <Target className="w-3 h-3 text-blue-500" /> Technique
-                              </Label>
-                              <div className="flex gap-2 flex-wrap">
-                                {['Clean', 'Kipping', 'Amplitude Incomplète', 'Lent'].map((tag) => (
-                                  <button
-                                    key={tag}
-                                    onClick={() =>
-                                      setTagsInput((prev) =>
-                                        prev.includes(tag)
-                                          ? prev.filter((t) => t !== tag)
-                                          : [...prev, tag]
-                                      )
-                                    }
-                                    className={cn(
-                                      'px-4 py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all border',
-                                      tagsInput.includes(tag)
-                                        ? 'bg-blue-50 border-blue-200 text-blue-700'
-                                        : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
-                                    )}
-                                  >
-                                    {tag}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-
-                            <Button
-                              onClick={submitFeedback}
-                              className="w-full h-14 rounded-[1rem] bg-slate-900 hover:bg-slate-800 text-white font-black text-sm uppercase italic mt-2"
-                            >
-                              Enregistrer Feedback
-                            </Button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </CardContent>
-                </Card>
-
-                <div className="space-y-3">
-                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2 px-1">
-                    <Activity className="w-3 h-3" /> Travail Accessoire
-                  </h4>
-                  <div className="space-y-2">
-                    {template.exercises
-                      .filter((e) => !e.isMain)
-                      .map((ex) => (
-                        <Card
-                          key={ex.name}
-                          className="bg-white border-slate-100 rounded-2xl shadow-sm border-l-4 border-l-blue-100"
-                        >
-                          <CardContent className="p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
-                                <Dumbbell className="w-5 h-5 text-slate-400" />
-                              </div>
-                              <div>
-                                <p className="font-black text-slate-800 text-sm uppercase italic tracking-tight">
-                                  {ex.name}
-                                </p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                  {ex.sets} séries • {ex.reps} reps
-                                </p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-lg font-black text-slate-700 italic">
-                                {typeof ex.weight === 'number' ? `${ex.weight}kg` : ex.weight}
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* History Section (Fixed) */}
-              <div className="space-y-4 pt-4">
-                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2 px-1">
-                  <History className="w-3 h-3" /> Historique récent
-                </h4>
-                <div className="space-y-3">
-                  {exerciseLogs.slice(0, 10).map((log, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center justify-between shadow-sm relative overflow-hidden"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-slate-900 uppercase italic text-xs">
-                            {log.exercise_name}
-                          </span>
-                          <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">
-                            {log.date
-                              ? new Date(log.date).toLocaleDateString('fr-FR', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                })
-                              : 'N/A'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-slate-400 font-bold text-[10px] uppercase tracking-tighter">
-                          <span>Lest: +{log.added_weight}kg</span>
-                          <span>•</span>
-                          <span>{log.reps} reps</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-1 justify-end text-blue-600">
-                          <Flame className="w-3 h-3 fill-current" />
-                          <span className="text-lg font-black italic">
-                            {Math.round(log.calculated_1rm * 10) / 10}kg
-                          </span>
-                        </div>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
-                          1RM Estimé
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  {exerciseLogs.length === 0 && (
-                    <p className="text-center py-10 text-slate-400 font-bold text-xs uppercase tracking-widest italic">
-                      Aucun historique disponible
-                    </p>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {currentView === 'progression' && <ProgressionView key="progression" />}
-
-          {currentView === 'profile' && (
-            <motion.div
-              key="profile"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-8"
-            >
-              {/* Header Profile */}
-              <div className="flex flex-col items-center gap-4 py-4">
-                <div className="w-24 h-24 bg-blue-600 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-blue-500/20">
-                  <User className="w-12 h-12 text-white" />
-                </div>
-                <div className="text-center space-y-1">
-                  <h2 className="text-2xl font-black text-slate-900 uppercase italic">
-                    Profil Athlète
-                  </h2>
-                  <Badge className="bg-slate-100 text-slate-500 border-none font-black text-[9px] uppercase tracking-widest px-3">
-                    Niveau Intermédiaire
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Bodyweight Card */}
-              <div className="grid grid-cols-1 gap-4">
-                <Card className="bg-white border-slate-100 rounded-[2rem] shadow-sm overflow-hidden">
-                  <CardContent className="p-6 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
-                        <Scale className="w-3 h-3" /> Poids Actuel
-                      </p>
-                      <p className="text-3xl font-black text-slate-800">
-                        {bodyWeight}
-                        <span className="text-sm font-bold text-slate-400 ml-1">kg</span>
-                      </p>
-                    </div>
-                    <Dialog open={isWeightDialogOpen} onOpenChange={setIsWeightDialogOpen}>
-                      <DialogTrigger
-                        render={
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-xl border-slate-200 font-bold uppercase text-[10px] italic h-10 px-4"
-                          >
-                            Modifier <Pencil className="w-3 h-3 ml-2" />
-                          </Button>
-                        }
-                      />
-                      <DialogContent className="sm:max-w-[400px] rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
-                        <div className="bg-slate-900 p-6 text-white">
-                          <DialogHeader>
-                            <DialogTitle className="text-xl font-black uppercase italic tracking-tight flex items-center gap-2">
-                              <Scale className="w-5 h-5 text-blue-400" /> Mon Poids Actuel
-                            </DialogTitle>
-                          </DialogHeader>
-                        </div>
-
-                        <div className="p-8 bg-white space-y-8">
-                          <div className="flex items-center justify-between gap-4">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-16 w-16 rounded-2xl border-2 border-slate-100 hover:border-blue-600 hover:text-blue-600 transition-all active:scale-90"
-                              onMouseDown={() =>
-                                startAdjusting(() => setNewBw((prev) => Math.max(0, prev - 0.5)))
-                              }
-                              onMouseUp={stopAdjusting}
-                              onMouseLeave={stopAdjusting}
-                              onTouchStart={(e) => {
-                                e.preventDefault();
-                                startAdjusting(() => setNewBw((prev) => Math.max(0, prev - 0.5)));
-                              }}
-                              onTouchEnd={stopAdjusting}
-                            >
-                              <Minus className="w-6 h-6" />
-                            </Button>
-
-                            <div className="flex-1 text-center group">
-                              <div className="relative">
-                                <Input
-                                  type="number"
-                                  value={newBw}
-                                  onChange={(e) => setNewBw(parseFloat(e.target.value) || 0)}
-                                  className="text-5xl font-black text-center border-none shadow-none focus-visible:ring-0 p-0 h-auto text-slate-900"
-                                />
-                                <div className="h-1 w-12 bg-blue-600 mx-auto rounded-full mt-1 group-focus-within:w-24 transition-all duration-300" />
-                              </div>
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2 block">
-                                Kilogrammes
-                              </span>
-                            </div>
-
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-16 w-16 rounded-2xl border-2 border-slate-100 hover:border-blue-600 hover:text-blue-600 transition-all active:scale-90"
-                              onMouseDown={() =>
-                                startAdjusting(() => setNewBw((prev) => prev + 0.5))
-                              }
-                              onMouseUp={stopAdjusting}
-                              onMouseLeave={stopAdjusting}
-                              onTouchStart={(e) => {
-                                e.preventDefault();
-                                startAdjusting(() => setNewBw((prev) => prev + 0.5));
-                              }}
-                              onTouchEnd={stopAdjusting}
-                            >
-                              <Plus className="w-6 h-6" />
-                            </Button>
-                          </div>
-
-                          <div className="pt-2">
-                            <Button
-                              onClick={handleUpdateBw}
-                              className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase italic rounded-2xl text-lg shadow-xl shadow-blue-500/20 transition-all active:scale-[0.98]"
-                            >
-                              Confirmer la mise à jour
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </CardContent>
-                </Card>
-
-                {/* Paramètres Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between px-1">
-                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2">
-                      <Settings className="w-3 h-3 text-blue-500" /> Paramètres du profil
-                    </h4>
-                    {!isEditingSettings ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsEditingSettings(true)}
-                        className="h-7 text-[10px] font-black uppercase text-blue-600 hover:bg-blue-50 rounded-lg px-3"
-                      >
-                        Modifier <Pencil className="w-3 h-3 ml-2" />
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsEditingSettings(false)}
-                        className="h-7 text-[10px] font-black uppercase text-slate-400 hover:bg-slate-50 rounded-lg px-3"
-                      >
-                        Annuler
-                      </Button>
-                    )}
-                  </div>
-
-                  <Card className="bg-white border-slate-100 rounded-[2.5rem] shadow-sm overflow-hidden transition-all duration-500">
-                    <CardContent className="p-0">
-                      <div className="divide-y divide-slate-50">
-                        {/* Birthdate / Age Item */}
-                        <div className="p-6 flex items-center justify-between group">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
-                              Naissance & Âge
-                            </Label>
-                            {!isEditingSettings ? (
-                              <p className="text-sm font-bold text-slate-700 uppercase">
-                                {editBirthDate}{' '}
-                                <span className="text-blue-600 ml-2">
-                                  ({calculateAge(editBirthDate)} ans)
-                                </span>
-                              </p>
-                            ) : (
-                              <input
-                                type="date"
-                                value={editBirthDate}
-                                onChange={(e) => setEditBirthDate(e.target.value)}
-                                className="h-10 w-full rounded-xl bg-slate-50 border-none px-4 text-sm font-black text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                              />
-                            )}
-                          </div>
-                          {!isEditingSettings && (
-                            <CalendarDays className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transition-colors" />
-                          )}
-                        </div>
-
-                        {/* Height Item */}
-                        <div className="p-6 flex items-center justify-between group">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
-                              Taille (CM)
-                            </Label>
-                            {!isEditingSettings ? (
-                              <p className="text-sm font-bold text-slate-700 uppercase">
-                                {editHeight} cm
-                              </p>
-                            ) : (
-                              <input
-                                type="number"
-                                value={editHeight}
-                                onChange={(e) => setEditHeight(parseInt(e.target.value) || 0)}
-                                className="h-10 w-full rounded-xl bg-slate-50 border-none px-4 text-sm font-black text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                              />
-                            )}
-                          </div>
-                          {!isEditingSettings && (
-                            <Info className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transition-colors" />
-                          )}
-                        </div>
-
-                        {/* Gender Item */}
-                        <div className="p-6 flex items-center justify-between group">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
-                              Sexe
-                            </Label>
-                            {!isEditingSettings ? (
-                              <p className="text-sm font-bold text-slate-700 uppercase">
-                                {editGender}
-                              </p>
-                            ) : (
-                              <div className="flex gap-2 mt-2">
-                                {['Homme', 'Femme'].map((g) => (
-                                  <button
-                                    key={g}
-                                    onClick={() => setEditGender(g as 'Homme' | 'Femme')}
-                                    className={cn(
-                                      'flex-1 h-10 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all',
-                                      editGender === g
-                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                        : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
-                                    )}
-                                  >
-                                    {g}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          {!isEditingSettings && (
-                            <User className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transition-colors" />
-                          )}
-                        </div>
-
-                        {/* Goal Item */}
-                        <div className="p-6 flex items-center justify-between group">
-                          <div className="space-y-1 flex-1">
-                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
-                              Objectif Programme
-                            </Label>
-                            {!isEditingSettings ? (
-                              <p className="text-sm font-bold text-slate-700 uppercase italic">
-                                {editGoal === 'prise_de_masse'
-                                  ? 'Prise de Masse'
-                                  : editGoal === 'maintenance'
-                                    ? 'Maintenance'
-                                    : 'Sèche Extrême'}
-                              </p>
-                            ) : (
-                              <div className="grid grid-cols-1 gap-2 mt-2">
-                                {[
-                                  { id: 'prise_de_masse', label: 'Prise de Masse' },
-                                  { id: 'maintenance', label: 'Maintenance' },
-                                  { id: 'seche_extreme', label: 'Sèche Extrême' },
-                                ].map((g) => (
-                                  <button
-                                    key={g.id}
-                                    onClick={() => setEditGoal(g.id)}
-                                    className={cn(
-                                      'flex items-center gap-3 h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all',
-                                      editGoal === g.id
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
-                                    )}
-                                  >
-                                    <Target
-                                      className={cn(
-                                        'w-3 h-3',
-                                        editGoal === g.id ? 'text-white' : 'text-slate-300'
-                                      )}
-                                    />
-                                    {g.label}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          {!isEditingSettings && (
-                            <Target className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transition-colors" />
-                          )}
-                        </div>
-
-                        {/* Activity Item */}
-                        <div className="p-6 flex items-center justify-between group">
-                          <div className="space-y-1 flex-1">
-                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
-                              Niveau d&apos;activité
-                            </Label>
-                            {!isEditingSettings ? (
-                              <p className="text-sm font-bold text-slate-700 uppercase">
-                                {editActivity === 1.2
-                                  ? 'Sédentaire'
-                                  : editActivity === 1.55
-                                    ? 'Actif'
-                                    : 'Athlète'}
-                              </p>
-                            ) : (
-                              <div className="grid grid-cols-3 gap-2 mt-2">
-                                {[
-                                  { val: 1.2, label: 'Séd.' },
-                                  { val: 1.55, label: 'Actif' },
-                                  { val: 1.75, label: 'Athlète' },
-                                ].map((a) => (
-                                  <button
-                                    key={a.label}
-                                    onClick={() => setEditActivity(a.val)}
-                                    className={cn(
-                                      'h-10 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all',
-                                      editActivity === a.val
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
-                                    )}
-                                  >
-                                    {a.label}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          {!isEditingSettings && (
-                            <Activity className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transition-colors" />
-                          )}
-                        </div>
-                      </div>
-
-                      <AnimatePresence>
-                        {isEditingSettings && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="px-6 pb-6"
-                          >
-                            <Button
-                              onClick={handleUpdateProfile}
-                              disabled={isSavingProfile}
-                              className="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white font-black uppercase italic rounded-2xl text-sm shadow-xl shadow-slate-900/10 transition-all active:scale-[0.98]"
-                            >
-                              {isSavingProfile ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                              ) : (
-                                'Enregistrer les changements'
-                              )}
-                            </Button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-
-              {/* Records Grid */}
-              <div className="space-y-4">
-                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2 px-1">
-                  <Trophy className="w-3 h-3 text-amber-500" /> Records Personnels (1RM)
-                </h4>
-                <div className="grid grid-cols-2 gap-3">
-                  {(['Tractions', 'Dips', 'Muscle-up', 'Squat'] as ExerciseType[]).map((ex) => (
-                    <div
-                      key={ex}
-                      className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm relative overflow-hidden"
-                    >
-                      <div className="absolute top-0 right-0 w-16 h-16 bg-slate-50 rounded-bl-[2rem] -mr-4 -mt-4 opacity-50" />
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">
-                        {ex}
-                      </p>
-                      <p className="text-2xl font-black text-slate-800 italic">
-                        {Math.round(oneRMs[ex])}
-                        <span className="text-[10px] ml-1 text-slate-400 uppercase">kg</span>
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* App Info / Other things */}
-              <div className="bg-slate-900 rounded-[2rem] p-6 text-white space-y-4 relative overflow-hidden">
-                <div className="relative z-10 space-y-4">
-                  <h3 className="font-black uppercase italic text-sm tracking-wider flex items-center gap-2">
-                    <Info className="w-4 h-4 text-blue-400" /> Progression Street Flow
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                    Ton programme suit une progression linéaire sur 9 semaines. Assure-toi de
-                    valider chaque séance principale pour que tes 1RM soient recalculés
-                    dynamiquement.
-                  </p>
-                  <div className="flex gap-2">
-                    <Badge className="bg-blue-500/20 text-blue-400 border-none font-black text-[8px] uppercase tracking-widest px-2">
-                      Cycle: Force
-                    </Badge>
-                    <Badge className="bg-emerald-500/20 text-emerald-400 border-none font-black text-[8px] uppercase tracking-widest px-2">
-                      Statut: Actif
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
-
-      {/* Bottom Nav Bar */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md h-20 bg-white/90 backdrop-blur-2xl border border-slate-200/50 rounded-[2.5rem] shadow-2xl shadow-slate-900/5 px-6 flex items-center justify-between z-50">
-        {[
-          { id: 'home', icon: Home, label: 'Accueil' },
-          { id: 'sessions', icon: Dumbbell, label: 'Séances' },
-          { id: 'scanner', icon: Utensils, label: 'Nutrition' },
-          { id: 'progression', icon: LineChart, label: 'Progrès' },
-          { id: 'profile', icon: User, label: 'Profil' },
-        ].map((item) => (
-          <button
-            key={item.id}
-            onClick={() => {
-              if (item.id === 'scanner') {
-                router.push('/nutrition/scanner');
-              } else {
-                setCurrentView(item.id as 'home' | 'sessions' | 'progression' | 'profile');
-              }
-            }}
-            className={cn(
-              'flex flex-col items-center gap-1 transition-all relative px-4 py-2 rounded-2xl',
-              currentView === item.id
-                ? 'text-blue-600 scale-110'
-                : 'text-slate-400 hover:text-slate-600'
-            )}
-          >
-            <item.icon
-              className={cn('w-6 h-6', currentView === item.id ? 'fill-blue-600/10' : '')}
-            />
-            <span className="text-[9px] font-black uppercase tracking-tighter">{item.label}</span>
-            {currentView === item.id && (
-              <motion.div
-                layoutId="nav-indicator"
-                className="absolute -bottom-1 w-1 h-1 bg-blue-600 rounded-full"
-              />
-            )}
-          </button>
-        ))}
+        <BottomNav active={currentView} onNav={handleNav} />
       </div>
     </div>
   );

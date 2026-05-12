@@ -5,13 +5,14 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(0.98 0.01 247); /* Slate-50 alternative */
+  /* shadcn tokens */
+  --background: oklch(0.98 0.01 247);
   --foreground: oklch(0.2 0.02 247);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.2 0.02 247);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.2 0.02 247);
-  --primary: oklch(0.5 0.2 250); /* Pro Blue */
+  --primary: oklch(0.5 0.2 250);
   --primary-foreground: oklch(0.98 0.01 247);
   --secondary: oklch(0.96 0.01 247);
   --secondary-foreground: oklch(0.2 0.02 247);
@@ -30,17 +31,28 @@
   --chart-4: oklch(0.7 0.14 280);
   --chart-5: oklch(0.7 0.16 340);
   --radius: 1rem;
+
+  /* Skin tokens — default: mono. JS overrides via applySkin() on mount. */
+  --bg: #ffffff;
+  --surface: #fcfcfc;
+  --surface-2: #f3f3f2;
+  --border: #e7e6e3;
+  --muted: #8a8884;
+  --ink-3: #b8b6b1;
+  --ink-2: #5a5854;
+  --fg: #0f0f0e;
+  --carbon: #0c0c0b;
+  --carbon-2: #161614;
 }
 
-/* On force le mode clair même si le système est en sombre */
 html {
-  background-color: #f8fafc; /* bg-slate-50 */
-  color: #0f172a;
+  background-color: var(--bg, #ffffff);
+  color: var(--fg, #0f0f0e);
 }
 
 body {
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--bg, #ffffff);
+  color: var(--fg, #0f0f0e);
 }
 
 .dark {

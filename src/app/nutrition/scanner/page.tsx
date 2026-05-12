@@ -3,6 +3,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { useSkin } from '@/lib/useSkin';
 import {
   Camera,
   Check,
@@ -76,8 +77,15 @@ const PORTIONS = [
   { label: '2×', value: 2 },
 ];
 
+const GOAL_LABELS: Record<GoalType, string> = {
+  cut: 'Sèche',
+  maintain: 'Maintien',
+  bulk: 'Prise',
+};
+
 /* ─────────────────────── Design tokens (scoped) ─────────────────────── */
 
+// Mono fallback values — used for inline SVG/canvas styles that can't use CSS vars.
 const PALETTE = {
   bg: '#ffffff',
   surface: '#fcfcfc',
@@ -91,17 +99,18 @@ const PALETTE = {
   carbon2: '#161614',
 } as const;
 
+// Relay --n-* vars through the global skin vars so the stored skin applies here too.
 const cssVars: React.CSSProperties = {
-  '--n-bg': PALETTE.bg,
-  '--n-surface': PALETTE.surface,
-  '--n-surface-2': PALETTE.surface2,
-  '--n-border': PALETTE.border,
-  '--n-muted': PALETTE.muted,
-  '--n-ink-3': PALETTE.ink3,
-  '--n-ink-2': PALETTE.ink2,
-  '--n-fg': PALETTE.fg,
-  '--n-carbon': PALETTE.carbon,
-  '--n-carbon-2': PALETTE.carbon2,
+  '--n-bg': 'var(--bg)',
+  '--n-surface': 'var(--surface)',
+  '--n-surface-2': 'var(--surface-2)',
+  '--n-border': 'var(--border)',
+  '--n-muted': 'var(--muted)',
+  '--n-ink-3': 'var(--ink-3)',
+  '--n-ink-2': 'var(--ink-2)',
+  '--n-fg': 'var(--fg)',
+  '--n-carbon': 'var(--carbon)',
+  '--n-carbon-2': 'var(--carbon-2)',
   fontFamily: 'var(--font-geist, ui-sans-serif, system-ui, sans-serif)',
 } as React.CSSProperties;
 
@@ -1276,11 +1285,20 @@ const ManualSheet = ({
 type ViewType = 'dashboard' | 'scanner' | 'analyzing' | 'result' | 'detail';
 
 export default function NutritionPage() {
+  useSkin();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { profile: appProfile, updateBodyweight } = useStore();
+  const { profile: appProfile, updateBodyweight, updateProfile } = useStore();
   const bodyWeight = appProfile?.body_weight || 80;
+
+  const nutritionProfile = {
+    height: appProfile?.height || 180,
+    age: calculateAge(appProfile?.birth_date || ''),
+    gender: (appProfile?.gender === 'Homme' ? 'M' : 'F') as GenderType,
+    activityLevel: appProfile?.activity_level || 1.55,
+    goal: (appProfile?.goal_program || 'maintain') as GoalType,
+  };
 
   const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros } = useNutritionStore();
 
@@ -1414,12 +1432,11 @@ export default function NutritionPage() {
     setIsSaving(true);
     try {
       if (data.weight !== bodyWeight) await updateBodyweight(data.weight);
-      updateProfile({
+      await updateProfile({
         height: data.height,
-        age: data.age,
-        gender: data.gender,
-        activityLevel: data.activity,
-        goal: data.goal,
+        gender: data.gender === 'M' ? 'Homme' : 'Femme',
+        activity_level: data.activity,
+        goal_program: data.goal,
       });
       toast.success('Paramètres mis à jour !');
       setSettingsOpen(false);
@@ -1540,9 +1557,7 @@ export default function NutritionPage() {
               className="h-1.5 w-1.5 rounded-full animate-pulse"
               style={{ background: PALETTE.fg }}
             />
-            <NL className="text-[9px] tracking-[0.2em]">
-              {{ cut: 'Sèche', maintain: 'Maintien', bulk: 'Prise' }[nutritionProfile.goal]}
-            </NL>
+            <NL className="text-[9px] tracking-[0.2em]">{GOAL_LABELS[nutritionProfile.goal]}</NL>
           </div>
         </div>
 
