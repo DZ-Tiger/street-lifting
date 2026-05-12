@@ -5,7 +5,7 @@ create extension if not exists "uuid-ossp";
 create table public.profiles (
   user_id uuid references auth.users on delete cascade primary key,
   body_weight real default 75,
-  age integer,
+  birth_date date,
   height integer,
   goal_program text,
   gender text,

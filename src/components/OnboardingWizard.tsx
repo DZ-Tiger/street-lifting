@@ -69,9 +69,9 @@ const GENDERS = [
 ];
 
 const PROGRAMS = [
-  { id: 'Sèche', label: 'SÈCHE', description: 'Perte de gras' },
-  { id: 'Prise de masse', label: 'MASSE', description: 'Gain musculaire' },
-  { id: 'Maintenance', label: 'MAINTIEN', description: 'Stabilité' },
+  { id: 'seche_extreme', label: 'SÈCHE', description: 'Perte de gras' },
+  { id: 'prise_de_masse', label: 'MASSE', description: 'Gain musculaire' },
+  { id: 'maintenance', label: 'MAINTIEN', description: 'Stabilité' },
 ];
 
 const DAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -82,9 +82,9 @@ export function OnboardingWizard() {
 
   const [step, setStep] = useState(1);
   const [bodyWeight, setBodyWeight] = useState<number>(profile?.body_weight || 75);
-  const [age, setAge] = useState<number>(25);
+  const [birthDate, setBirthDate] = useState<string>('2000-01-01');
   const [height, setHeight] = useState<number>(175);
-  const [goalProgram, setGoalProgram] = useState<string>('Maintenance');
+  const [goalProgram, setGoalProgram] = useState<string>('maintenance');
   const [gender, setGender] = useState<'Homme' | 'Femme' | null>(null);
   const [trainingDays, setTrainingDays] = useState<number[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -196,7 +196,7 @@ export function OnboardingWizard() {
         current_1rm_dips: getFinal1RM('Dips'),
         current_1rm_muscleup: getFinal1RM('Muscle-up'),
         current_1rm_squat: getFinal1RM('Squat'),
-        age,
+        birth_date: birthDate,
         height,
         goal_program: goalProgram,
         gender: gender || 'Homme',
@@ -445,48 +445,16 @@ export function OnboardingWizard() {
                     <div className="flex items-center gap-2">
                       <Calendar className="w-3 h-3 text-slate-400" />
                       <Label className="text-[8px] font-black uppercase text-slate-400 tracking-widest">
-                        ÂGE
+                        NAISSANCE
                       </Label>
                     </div>
                     <div className="flex items-center justify-between">
                       <input
-                        type="number"
-                        value={age}
-                        onChange={(e) => setAge(Number(e.target.value))}
-                        className="w-12 text-2xl font-black italic bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        type="date"
+                        value={birthDate}
+                        onChange={(e) => setBirthDate(e.target.value)}
+                        className="w-full text-sm font-black italic bg-transparent border-none focus:outline-none uppercase"
                       />
-                      <div className="flex gap-1">
-                        <button
-                          onMouseDown={() =>
-                            startAdjusting(() => setAge((a) => Math.max(12, a - 1)))
-                          }
-                          onMouseUp={stopAdjusting}
-                          onMouseLeave={stopAdjusting}
-                          onTouchStart={(e) => {
-                            e.preventDefault();
-                            startAdjusting(() => setAge((a) => Math.max(12, a - 1)));
-                          }}
-                          onTouchEnd={stopAdjusting}
-                          className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center active:scale-90"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </button>
-                        <button
-                          onMouseDown={() =>
-                            startAdjusting(() => setAge((a) => Math.min(99, a + 1)))
-                          }
-                          onMouseUp={stopAdjusting}
-                          onMouseLeave={stopAdjusting}
-                          onTouchStart={(e) => {
-                            e.preventDefault();
-                            startAdjusting(() => setAge((a) => Math.min(99, a + 1)));
-                          }}
-                          onTouchEnd={stopAdjusting}
-                          className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center active:scale-90"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-                      </div>
                     </div>
                   </div>
 
