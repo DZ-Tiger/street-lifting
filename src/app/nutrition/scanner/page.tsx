@@ -3,47 +3,26 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Camera,
   Check,
   Loader2,
   ChevronLeft,
-  Target,
-  Flame,
   ChevronDown,
   ChevronUp,
   Trash2,
   RotateCcw,
   Plus,
-  Utensils,
-  Settings,
-  Activity,
-  Scale,
   Pencil,
-  Save,
+  X,
+  Flame,
+  Settings2 as SettingsIcon,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
 import { NutritionResponse } from '@/app/api/nutrition/scan/route';
-import { cn } from '@/lib/utils';
-
-// STORES
 import {
   useNutritionStore,
   calculateTargets,
@@ -53,68 +32,1026 @@ import {
 } from '@/store/useNutritionStore';
 import { useStore } from '@/store/useStore';
 
-/**
- * UTILS: Compression d'image côté client
- */
-const compressImage = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
+/* ─────────────────────── Utilities ─────────────────────── */
+
+const compressImage = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = (event) => {
+    reader.onload = (ev) => {
       const img = new window.Image();
-      img.src = event.target?.result as string;
+      img.src = ev.target?.result as string;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_SIZE = 1024;
-        let width = img.width;
-        let height = img.height;
-
+        const MAX = 1024;
+        let { width, height } = img;
         if (width > height) {
-          if (width > MAX_SIZE) {
-            height *= MAX_SIZE / width;
-            width = MAX_SIZE;
-          }
+          if (width > MAX) { height *= MAX / width; width = MAX; }
         } else {
-          if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
-            height = MAX_SIZE;
-          }
+          if (height > MAX) { width *= MAX / height; height = MAX; }
         }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
         resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
       img.onerror = reject;
     };
     reader.onerror = reject;
   });
-};
-
-const goalLabels: Record<GoalType, string> = {
-  cut: 'Sèche',
-  maintain: 'Maintien',
-  bulk: 'Prise de masse',
-};
 
 const PORTIONS = [
   { label: '1/4', value: 0.25 },
-  { label: '1/3', value: 0.3333 },
+  { label: '1/3', value: 0.333 },
   { label: '1/2', value: 0.5 },
-  { label: '2/3', value: 0.6667 },
+  { label: '2/3', value: 0.667 },
   { label: '3/4', value: 0.75 },
-  { label: '1x', value: 1 },
-  { label: '1.5x', value: 1.5 },
-  { label: '2x', value: 2 },
+  { label: '1×', value: 1 },
+  { label: '1.5×', value: 1.5 },
+  { label: '2×', value: 2 },
 ];
+
+/* ─────────────────────── Design tokens (scoped) ─────────────────────── */
+
+const PALETTE = {
+  bg: '#ffffff',
+  surface: '#fcfcfc',
+  surface2: '#f3f3f2',
+  border: '#e7e6e3',
+  muted: '#8a8884',
+  ink3: '#b8b6b1',
+  ink2: '#5a5854',
+  fg: '#0f0f0e',
+  carbon: '#0c0c0b',
+  carbon2: '#161614',
+} as const;
+
+const cssVars: React.CSSProperties = {
+  '--n-bg': PALETTE.bg,
+  '--n-surface': PALETTE.surface,
+  '--n-surface-2': PALETTE.surface2,
+  '--n-border': PALETTE.border,
+  '--n-muted': PALETTE.muted,
+  '--n-ink-3': PALETTE.ink3,
+  '--n-ink-2': PALETTE.ink2,
+  '--n-fg': PALETTE.fg,
+  '--n-carbon': PALETTE.carbon,
+  '--n-carbon-2': PALETTE.carbon2,
+  fontFamily: 'var(--font-geist, ui-sans-serif, system-ui, sans-serif)',
+} as React.CSSProperties;
+
+/* ─────────────────────── Micro-components ─────────────────────── */
+
+const NL = ({ children, className = '', style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
+  <span
+    className={`text-[10px] font-medium uppercase tracking-[0.16em] ${className}`}
+    style={{ color: 'var(--n-muted)', ...style }}
+  >
+    {children}
+  </span>
+);
+
+const NN = ({ children, className = '', style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
+  <span
+    className={`font-mono tabular-nums ${className}`}
+    style={{ fontFamily: 'var(--font-geist-mono, ui-monospace, monospace)', fontFeatureSettings: '"tnum" 1, "ss01" 1', ...style }}
+  >
+    {children}
+  </span>
+);
+
+const HDivider = ({ className = '' }: { className?: string }) => (
+  <div className={`h-px w-full ${className}`} style={{ background: 'var(--n-border)' }} />
+);
+
+/* ─────────────────────── CalorieRing ─────────────────────── */
+
+const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => {
+  const size = 220;
+  const stroke = 3;
+  const r = (size - stroke * 2) / 2 - 8;
+  const c = 2 * Math.PI * r;
+  const pct = Math.min(consumed / goal, 1);
+  const offset = c - pct * c;
+  const remaining = Math.max(goal - consumed, 0);
+  const tickCount = 60;
+
+  return (
+    <div className="relative mx-auto" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="absolute inset-0">
+        <g transform={`translate(${size / 2},${size / 2})`}>
+          {Array.from({ length: tickCount }).map((_, i) => {
+            const angle = (i / tickCount) * 2 * Math.PI - Math.PI / 2;
+            const major = i % 5 === 0;
+            const inner = r + 6;
+            const outer = r + (major ? 12 : 9);
+            const filled = i / tickCount <= pct;
+            return (
+              <line
+                key={i}
+                x1={Math.cos(angle) * inner} y1={Math.sin(angle) * inner}
+                x2={Math.cos(angle) * outer} y2={Math.sin(angle) * outer}
+                stroke={filled ? PALETTE.fg : PALETTE.border}
+                strokeWidth={major ? 1.25 : 0.75}
+                strokeLinecap="round"
+              />
+            );
+          })}
+        </g>
+        <circle cx={size / 2} cy={size / 2} r={r} stroke={PALETTE.border} strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2} cy={size / 2} r={r}
+          stroke={PALETTE.fg} strokeWidth={stroke} fill="none"
+          strokeDasharray={c} strokeDashoffset={offset}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={{ transition: 'stroke-dashoffset 800ms cubic-bezier(.2,.7,.2,1)' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="flex items-center gap-1.5 mb-2" style={{ color: PALETTE.muted }}>
+          <Flame size={11} strokeWidth={1.5} />
+          <NL className="tracking-[0.22em]">Énergie</NL>
+        </div>
+        <NN className="text-[44px] leading-none font-medium tracking-tight" style={{ color: PALETTE.fg } as React.CSSProperties}>
+          {consumed.toLocaleString('fr-FR')}
+        </NN>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <NN className="text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>/ {goal.toLocaleString('fr-FR')}</NN>
+          <NL className="text-[9px] tracking-[0.2em]">kcal</NL>
+        </div>
+        <div
+          className="mt-3 px-2.5 py-1 rounded-full flex items-center gap-1.5"
+          style={{ border: `1px solid ${PALETTE.border}` }}
+        >
+          <span className="h-1 w-1 rounded-full" style={{ background: PALETTE.fg }} />
+          <NN className="text-[10px] font-medium" style={{ color: PALETTE.fg } as React.CSSProperties}>{remaining}</NN>
+          <NL className="text-[9px] tracking-[0.18em]">restantes</NL>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── MacroBar ─────────────────────── */
+
+const MacroBar = ({
+  label, current, target, shade = 'fg',
+}: {
+  label: string; current: number; target: number; shade?: 'fg' | 'mid' | 'low';
+}) => {
+  const pct = Math.min((current / target) * 100, 100);
+  const over = current > target;
+  const color = shade === 'fg' ? PALETTE.fg : shade === 'mid' ? PALETTE.ink2 : PALETTE.ink3;
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between items-baseline">
+        <NL>{label}</NL>
+        <div className="flex items-baseline gap-1">
+          <NN className="text-[13px] font-medium" style={{ color: PALETTE.fg } as React.CSSProperties}>{current}</NN>
+          <NN className="text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>/ {target}g</NN>
+        </div>
+      </div>
+      <div
+        className="relative h-[6px] w-full rounded-full overflow-hidden"
+        style={{ background: PALETTE.surface2 }}
+      >
+        <div
+          className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-700"
+          style={{ width: `${pct}%`, background: color }}
+        />
+        {[25, 50, 75].map((p) => (
+          <div
+            key={p}
+            className="absolute top-0 bottom-0 w-px"
+            style={{ left: `${p}%`, background: PALETTE.bg }}
+          />
+        ))}
+      </div>
+      <div className="flex justify-between">
+        <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{Math.round(pct)}%</NN>
+        <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+          {over ? `+${current - target}g` : `−${target - current}g`}
+        </NN>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── MealRow ─────────────────────── */
+
+const MealRow = ({
+  meal, onOpen, onDelete,
+}: {
+  meal: HistoryItem;
+  onOpen: (m: HistoryItem) => void;
+  onDelete: (id: string) => void;
+}) => (
+  <button
+    onClick={() => onOpen(meal)}
+    className="w-full text-left group relative pl-6 pr-2 py-3.5 hover:bg-[#f3f3f2]/60 transition-colors"
+  >
+    <div className="absolute left-2 top-0 bottom-0 w-px" style={{ background: PALETTE.border }} />
+    <div
+      className="absolute left-2 top-5 -translate-x-1/2 h-1.5 w-1.5 rounded-full ring-4"
+      style={{ background: PALETTE.fg, ringColor: PALETTE.bg } as React.CSSProperties}
+    />
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 mb-1">
+          <NN className="text-[10px] uppercase tracking-[0.2em]" style={{ color: PALETTE.muted } as React.CSSProperties}>{meal.time}</NN>
+          <div className="h-px w-2" style={{ background: PALETTE.border }} />
+        </div>
+        <div className="text-[15px] font-medium leading-snug truncate" style={{ color: PALETTE.fg }}>
+          {meal.mealName}
+        </div>
+        <div className="mt-1.5 flex items-center gap-3">
+          {[
+            { dot: PALETTE.fg, val: meal.macros.protein, unit: 'P' },
+            { dot: PALETTE.ink2, val: meal.macros.carbs, unit: 'G' },
+            { dot: PALETTE.ink3, val: meal.macros.fat, unit: 'L' },
+          ].map(({ dot, val, unit }) => (
+            <span key={unit} className="flex items-center gap-1">
+              <span className="h-1 w-1 rounded-full" style={{ background: dot }} />
+              <NN className="text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+                {val}<span className="ml-0.5 text-[9px]">{unit}</span>
+              </NN>
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <div className="text-right">
+          <NN className="text-[17px] font-medium leading-none" style={{ color: PALETTE.fg } as React.CSSProperties}>{meal.calories}</NN>
+          <div className="mt-1"><NL className="text-[8px] tracking-[0.22em]">kcal</NL></div>
+        </div>
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => { e.stopPropagation(); onDelete(meal.id); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onDelete(meal.id); } }}
+          className="ml-2 h-8 w-8 inline-flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 hover:bg-[#f3f3f2] transition cursor-pointer"
+          style={{ color: PALETTE.muted }}
+          aria-label="Supprimer"
+        >
+          <Trash2 size={15} />
+        </span>
+      </div>
+    </div>
+  </button>
+);
+
+/* ─────────────────────── Corner Bracket (Scanner) ─────────────────────── */
+
+const CornerBracket = ({ position }: { position: 'tl' | 'tr' | 'bl' | 'br' }) => {
+  const rotate = { tl: '', tr: 'rotate-90', bl: '-rotate-90', br: 'rotate-180' }[position];
+  return (
+    <div className={`absolute w-10 h-10 ${position === 'tl' ? 'top-0 left-0' : position === 'tr' ? 'top-0 right-0' : position === 'bl' ? 'bottom-0 left-0' : 'bottom-0 right-0'} ${rotate}`}>
+      <svg viewBox="0 0 40 40" className="w-full h-full" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M2 14 V4 a2 2 0 0 1 2-2 H14" />
+      </svg>
+    </div>
+  );
+};
+
+/* ─────────────────────── Analyzing Steps ─────────────────────── */
+
+const ANALYZE_STEPS = [
+  'Détection du contenu',
+  'Segmentation des ingrédients',
+  'Estimation du volume',
+  'Calcul des macronutriments',
+];
+
+const AnalyzingView = ({ onCancel }: { onCancel: () => void }) => {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setStep((s) => Math.min(s + 1, ANALYZE_STEPS.length)), 700);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="absolute inset-0 flex flex-col" style={{ background: PALETTE.carbon }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-3 pb-4">
+        <button
+          onClick={onCancel}
+          className="h-10 w-10 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
+        >
+          <ChevronLeft size={22} strokeWidth={1.75} />
+        </button>
+        <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">Analyse</div>
+        <div className="h-10 w-10" />
+      </div>
+
+      <div className="flex-1 flex flex-col px-5">
+        {/* Pulsing frame */}
+        <div
+          className="relative w-full rounded-[28px] overflow-hidden"
+          style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
+        >
+          <div
+            className="absolute inset-0 animate-pulse"
+            style={{
+              backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.04) 0 8px, transparent 8px 16px)',
+            }}
+          />
+          <div className="absolute inset-6 grid grid-cols-3 grid-rows-3 gap-2">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-lg border border-white/10"
+                style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  animation: `pulse 1.6s ease-in-out ${i * 120}ms infinite`,
+                }}
+              />
+            ))}
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex flex-col items-center">
+              <div className="h-10 w-10 rounded-full border border-white/20 flex items-center justify-center mb-3 relative">
+                <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping absolute" />
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+              </div>
+              <NL className="text-white tracking-[0.28em]">Analyse en cours</NL>
+            </div>
+          </div>
+        </div>
+
+        {/* Steps log */}
+        <div className="mt-6 space-y-2.5">
+          {ANALYZE_STEPS.map((s, i) => {
+            const state = i < step ? 'done' : i === step ? 'live' : 'todo';
+            return (
+              <div key={i} className="flex items-center gap-3">
+                <div
+                  className={`h-5 w-5 rounded-full flex items-center justify-center shrink-0 border ${
+                    state === 'done'
+                      ? 'border-white bg-white/10 text-white'
+                      : state === 'live'
+                      ? 'border-white/60 text-white/80'
+                      : 'border-white/15 text-white/30'
+                  }`}
+                >
+                  {state === 'done' ? (
+                    <Check size={11} strokeWidth={2} />
+                  ) : state === 'live' ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                  ) : (
+                    <span className="h-1 w-1 rounded-full bg-white/30" />
+                  )}
+                </div>
+                <span
+                  className={`text-[12px] tracking-wide ${
+                    state === 'todo' ? 'text-white/30' : 'text-white/85'
+                  }`}
+                >
+                  {s}
+                </span>
+                {state === 'live' && (
+                  <div className="ml-auto flex gap-1">
+                    {[0, 1, 2].map((d) => (
+                      <span
+                        key={d}
+                        className="h-1 w-1 rounded-full bg-white/60"
+                        style={{ animation: `pulse 1s ${d * 150}ms infinite` }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-auto mb-8">
+          <button
+            onClick={onCancel}
+            className="w-full h-12 rounded-2xl border border-white/15 text-white/80 text-[11px] font-medium uppercase tracking-[0.22em] hover:bg-white/5 transition"
+          >
+            Annuler l&apos;analyse
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── Result / Detail View ─────────────────────── */
+
+const ResultView = ({
+  initial,
+  image,
+  onBack,
+  onSave,
+  mode,
+  isSaving,
+  onUpdateMacros,
+  onUpdatePortion,
+}: {
+  initial: HistoryItem | NutritionResponse & { id?: string; time?: string; portion?: number; baseCalories?: number; baseMacros?: { protein: number; carbs: number; fat: number }; estimatedWeightGrams?: number };
+  image?: string | null;
+  onBack: () => void;
+  onSave: (portion: number, macros: { protein: number; carbs: number; fat: number }) => void;
+  mode: 'scan' | 'detail';
+  isSaving?: boolean;
+  onUpdateMacros?: (macros: { protein: number; carbs: number; fat: number }) => void;
+  onUpdatePortion?: (portion: number) => void;
+}) => {
+  const basePortion = (initial as HistoryItem).portion ?? 1;
+  const [portion, setPortion] = useState(basePortion);
+  const [name, setName] = useState(initial.mealName);
+  const [editName, setEditName] = useState(false);
+  const [editing, setEditing] = useState<'protein' | 'carbs' | 'fat' | null>(null);
+  const [macros, setMacros] = useState({
+    protein: (initial as HistoryItem).baseMacros?.protein ?? initial.macros.protein / basePortion,
+    carbs: (initial as HistoryItem).baseMacros?.carbs ?? initial.macros.carbs / basePortion,
+    fat: (initial as HistoryItem).baseMacros?.fat ?? initial.macros.fat / basePortion,
+  });
+  const [showMicros, setShowMicros] = useState(false);
+
+  const cal = Math.round((macros.protein * 4 + macros.carbs * 4 + macros.fat * 9) * portion);
+  const macroAt = (k: 'protein' | 'carbs' | 'fat') => Math.round(macros[k] * portion);
+
+  const p = macroAt('protein') * 4;
+  const cg = macroAt('carbs') * 4;
+  const f = macroAt('fat') * 9;
+  const macroTotal = Math.max(p + cg + f, 1);
+
+  return (
+    <div className="flex flex-col h-full" style={{ background: PALETTE.bg, color: PALETTE.fg }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-3 pb-4">
+        <button
+          onClick={onBack}
+          className="h-10 w-10 -ml-2 flex items-center justify-center rounded-full transition hover:bg-[#f3f3f2] active:scale-95"
+          style={{ color: PALETTE.fg }}
+        >
+          <ChevronLeft size={22} strokeWidth={1.75} />
+        </button>
+        <div className="text-[11px] font-medium uppercase tracking-[0.28em]" style={{ color: PALETTE.fg }}>
+          {mode === 'scan' ? 'Vérifier' : 'Détail repas'}
+        </div>
+        <div className="h-10 w-10 -mr-2 flex items-center justify-center">
+          <NL>{mode === 'scan' ? 'Scan IA' : 'Historique'}</NL>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto pb-28">
+        {/* Image strip */}
+        <div
+          className="mx-5 rounded-2xl border overflow-hidden mb-4"
+          style={{ borderColor: PALETTE.border }}
+        >
+          <div
+            className="relative"
+            style={{
+              aspectRatio: '16/9',
+              background: PALETTE.surface2,
+              backgroundImage: image ? undefined : `repeating-linear-gradient(135deg, ${PALETTE.border} 0 2px, transparent 2px 14px)`,
+            }}
+          >
+            {image ? (
+              <Image src={image} alt="Repas" fill className="object-cover" unoptimized />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div
+                  className="flex items-center gap-2 px-2.5 py-1 rounded-full border"
+                  style={{ background: PALETTE.bg, borderColor: PALETTE.border }}
+                >
+                  <ImageIcon size={12} strokeWidth={1.5} style={{ color: PALETTE.muted }} />
+                  <NN className="text-[10px] uppercase tracking-[0.18em]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+                    Photo du repas
+                  </NN>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Name */}
+        <div className="px-5 mb-5">
+          <div className="flex items-center gap-2 mb-1.5">
+            <NL>Repas détecté</NL>
+            <div className="h-px flex-1" style={{ background: PALETTE.border }} />
+            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>conf. 94%</NN>
+          </div>
+          <button
+            onClick={() => setEditName(true)}
+            className="group w-full text-left flex items-start gap-2"
+          >
+            {editName ? (
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={() => setEditName(false)}
+                onKeyDown={(e) => { if (e.key === 'Enter') setEditName(false); }}
+                className="text-[22px] font-medium leading-tight bg-transparent outline-none w-full border-b"
+                style={{ color: PALETTE.fg, borderColor: PALETTE.fg }}
+              />
+            ) : (
+              <>
+                <h2 className="text-[22px] font-medium leading-tight flex-1" style={{ color: PALETTE.fg }}>{name}</h2>
+                <Pencil
+                  size={14}
+                  className="mt-2 transition"
+                  style={{ color: PALETTE.muted }}
+                />
+              </>
+            )}
+          </button>
+          {initial.estimatedWeightGrams != null && (
+            <NN className="block mt-2 text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+              ≈ {Math.round(initial.estimatedWeightGrams * portion)} g
+            </NN>
+          )}
+        </div>
+
+        {/* Hero calorie panel */}
+        <div
+          className="mx-5 mb-5 border rounded-2xl p-5"
+          style={{ borderColor: PALETTE.border, background: PALETTE.surface }}
+        >
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <NL>Énergie totale</NL>
+              <div className="mt-1 flex items-baseline gap-1.5">
+                <NN className="text-[40px] font-medium leading-none tracking-tight" style={{ color: PALETTE.fg } as React.CSSProperties}>
+                  {cal}
+                </NN>
+                <NL className="text-[10px]">kcal</NL>
+              </div>
+            </div>
+            {initial.estimatedWeightGrams != null && (
+              <div className="text-right">
+                <NL>Densité</NL>
+                <NN className="block mt-1 text-[13px] font-medium" style={{ color: PALETTE.fg } as React.CSSProperties}>
+                  {(cal / (initial.estimatedWeightGrams * portion)).toFixed(2)} kcal/g
+                </NN>
+              </div>
+            )}
+          </div>
+          {/* Stacked distribution bar */}
+          <div>
+            <div className="flex h-2 rounded-full overflow-hidden border" style={{ borderColor: PALETTE.border }}>
+              <div style={{ width: `${(p / macroTotal) * 100}%`, background: PALETTE.fg }} />
+              <div style={{ width: `${(cg / macroTotal) * 100}%`, background: PALETTE.ink2 }} />
+              <div style={{ width: `${(f / macroTotal) * 100}%`, background: PALETTE.ink3 }} />
+            </div>
+            <div className="mt-2 flex justify-between">
+              <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>P {Math.round((p / macroTotal) * 100)}%</NN>
+              <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>G {Math.round((cg / macroTotal) * 100)}%</NN>
+              <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>L {Math.round((f / macroTotal) * 100)}%</NN>
+            </div>
+          </div>
+        </div>
+
+        {/* Portion segment control */}
+        <div className="px-5 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <NL>Fraction consommée</NL>
+            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+              ×{portion === 1 ? '1.00' : portion.toFixed(2)}
+            </NN>
+          </div>
+          <div className="border rounded-2xl p-1 flex" style={{ borderColor: PALETTE.border }}>
+            {PORTIONS.map((p) => {
+              const active = Math.abs(portion - p.value) < 0.001;
+              return (
+                <button
+                  key={p.label}
+                  onClick={() => {
+                    setPortion(p.value);
+                    onUpdatePortion?.(p.value);
+                  }}
+                  className={`flex-1 h-10 rounded-xl text-[12px] font-medium transition ${
+                    active ? '' : 'hover:opacity-70'
+                  }`}
+                  style={active ? { background: PALETTE.fg, color: PALETTE.bg } : { color: PALETTE.muted }}
+                >
+                  <NN>{p.label}</NN>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Editable macro cards */}
+        <div className="px-5 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <NL>Macronutriments</NL>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                { k: 'protein' as const, label: 'Protéines', unit: 'g', kcalFactor: 4 },
+                { k: 'carbs' as const, label: 'Glucides', unit: 'g', kcalFactor: 4 },
+                { k: 'fat' as const, label: 'Lipides', unit: 'g', kcalFactor: 9 },
+              ] as const
+            ).map((m, idx) => {
+              const isEditing = editing === m.k;
+              return (
+                <div
+                  key={m.k}
+                  className="relative border rounded-2xl p-3 transition"
+                  style={{
+                    borderColor: isEditing ? PALETTE.fg : PALETTE.border,
+                    background: PALETTE.surface,
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <NL className="text-[9px]">{m.label}</NL>
+                    <button
+                      onClick={() => {
+                        if (isEditing && onUpdateMacros) onUpdateMacros(macros);
+                        setEditing(isEditing ? null : m.k);
+                      }}
+                      style={{ color: PALETTE.muted }}
+                    >
+                      {isEditing ? <Check size={12} /> : <Pencil size={11} />}
+                    </button>
+                  </div>
+                  {isEditing ? (
+                    <input
+                      autoFocus
+                      type="number"
+                      value={macros[m.k]}
+                      onChange={(e) => setMacros({ ...macros, [m.k]: Number(e.target.value) || 0 })}
+                      onBlur={() => setEditing(null)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') setEditing(null); }}
+                      className="w-full bg-transparent outline-none font-mono tabular-nums text-[22px] font-medium border-b"
+                      style={{ color: PALETTE.fg, borderColor: PALETTE.fg }}
+                    />
+                  ) : (
+                    <div className="flex items-baseline gap-1">
+                      <NN className="text-[22px] font-medium leading-none" style={{ color: PALETTE.fg } as React.CSSProperties}>
+                        {macroAt(m.k)}
+                      </NN>
+                      <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{m.unit}</NN>
+                    </div>
+                  )}
+                  <NN className="block mt-1.5 text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+                    {Math.round(macroAt(m.k) * m.kcalFactor)} kcal
+                  </NN>
+                  <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: PALETTE.surface2 }}>
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min((macroAt(m.k) / (m.k === 'protein' ? 60 : m.k === 'carbs' ? 90 : 40)) * 100, 100)}%`,
+                        background: idx === 0 ? PALETTE.fg : idx === 1 ? PALETTE.ink2 : PALETTE.ink3,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Micros */}
+        {initial.micros && initial.micros.length > 0 && (
+          <div className="px-5 mb-5">
+            <button
+              onClick={() => setShowMicros((s) => !s)}
+              className="w-full flex items-center justify-between py-3 border-t"
+              style={{ borderColor: PALETTE.border }}
+            >
+              <NL>Micronutriments</NL>
+              <div className="flex items-center gap-2" style={{ color: PALETTE.muted }}>
+                <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{initial.micros.length} mesures</NN>
+                {showMicros ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </div>
+            </button>
+            {showMicros && (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 pb-2">
+                {initial.micros.map((mi, i) => (
+                  <div
+                    key={i}
+                    className="flex items-baseline justify-between border-b border-dashed pb-1.5"
+                    style={{ borderColor: PALETTE.border }}
+                  >
+                    <NL className="text-[9px]">{mi.name}</NL>
+                    <NN className="text-[11px] font-medium" style={{ color: PALETTE.fg } as React.CSSProperties}>{mi.amount}</NN>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div
+        className="absolute left-0 right-0 bottom-0 px-5 pb-6 pt-6 pointer-events-none"
+        style={{ background: `linear-gradient(to top, ${PALETTE.bg} 50%, transparent)` }}
+      >
+        <div className="pointer-events-auto flex gap-2.5">
+          <button
+            onClick={onBack}
+            className="px-4 rounded-2xl border flex items-center gap-2 active:scale-[0.98] transition hover:opacity-80"
+            style={{ height: 52, borderColor: PALETTE.border, background: PALETTE.surface, color: PALETTE.fg }}
+          >
+            <RotateCcw size={16} strokeWidth={1.75} />
+            <NL className="text-[10px]">Recommencer</NL>
+          </button>
+          <button
+            onClick={() => onSave(portion, macros)}
+            disabled={isSaving}
+            className="flex-1 rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition hover:opacity-90 disabled:opacity-50"
+            style={{ height: 52, background: PALETTE.fg, color: PALETTE.bg }}
+          >
+            {isSaving ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <>
+                <Check size={16} strokeWidth={2} />
+                <span className="text-[12px] font-medium uppercase tracking-[0.22em]">
+                  {mode === 'scan' ? 'Ajouter au journal' : 'Enregistrer'}
+                </span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── Settings Sheet ─────────────────────── */
+
+const SettingsSheet = ({
+  open,
+  onClose,
+  bodyWeight,
+  nutritionProfile,
+  onSave,
+  isSaving,
+}: {
+  open: boolean;
+  onClose: () => void;
+  bodyWeight: number;
+  nutritionProfile: { height: number; age: number; gender: GenderType; activityLevel: number; goal: GoalType };
+  onSave: (data: { weight: number; height: number; age: number; gender: GenderType; activity: number; goal: GoalType }) => void;
+  isSaving: boolean;
+}) => {
+  const [weight, setWeight] = useState(bodyWeight);
+  const [height, setHeight] = useState(nutritionProfile.height);
+  const [age, setAge] = useState(nutritionProfile.age);
+  const [gender, setGender] = useState<GenderType>(nutritionProfile.gender);
+  const [activity, setActivity] = useState(nutritionProfile.activityLevel);
+  const [goal, setGoal] = useState<GoalType>(nutritionProfile.goal);
+
+  useEffect(() => {
+    if (open) {
+      setWeight(bodyWeight);
+      setHeight(nutritionProfile.height);
+      setAge(nutritionProfile.age);
+      setGender(nutritionProfile.gender);
+      setActivity(nutritionProfile.activityLevel);
+      setGoal(nutritionProfile.goal);
+    }
+  }, [open, bodyWeight, nutritionProfile]);
+
+  if (!open) return null;
+
+  return (
+    <div className="absolute inset-0 z-50 flex items-end">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div
+        className="relative w-full rounded-t-[28px] border-t max-h-[88%] overflow-y-auto"
+        style={{ background: PALETTE.bg, borderColor: PALETTE.border }}
+      >
+        <div className="px-5 pt-3 pb-2 flex justify-center">
+          <div className="h-1 w-9 rounded-full" style={{ background: PALETTE.border }} />
+        </div>
+        <div className="px-5 pb-2 pt-1 flex items-center justify-between">
+          <div className="text-[16px] font-medium" style={{ color: PALETTE.fg }}>Paramètres</div>
+          <button
+            onClick={onClose}
+            className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-[#f3f3f2]"
+            style={{ color: PALETTE.fg }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <HDivider />
+
+        <div className="px-5 py-5 space-y-6">
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { l: 'Poids', val: weight, set: setWeight, u: 'kg' },
+              { l: 'Taille', val: height, set: setHeight, u: 'cm' },
+              { l: 'Âge', val: age, set: setAge, u: 'ans' },
+            ].map((f) => (
+              <div key={f.l} className="border rounded-xl p-3" style={{ borderColor: PALETTE.border }}>
+                <NL>{f.l}</NL>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <input
+                    type="number"
+                    value={f.val}
+                    onChange={(e) => f.set(Number(e.target.value) || 0)}
+                    className="bg-transparent outline-none font-mono tabular-nums text-[20px] font-medium w-full"
+                    style={{ color: PALETTE.fg }}
+                  />
+                  <NL className="text-[9px]">{f.u}</NL>
+                </div>
+              </div>
+            ))}
+            <div className="border rounded-xl p-3" style={{ borderColor: PALETTE.border }}>
+              <NL>Sexe</NL>
+              <div className="mt-2 flex gap-1">
+                {(['M', 'F'] as GenderType[]).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGender(g)}
+                    className="flex-1 h-8 rounded-lg text-[12px] font-medium transition"
+                    style={gender === g ? { background: PALETTE.fg, color: PALETTE.bg } : { color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+                  >
+                    {g === 'M' ? 'Homme' : 'Femme'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <NL className="mb-2 block">Objectif</NL>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { k: 'cut' as GoalType, l: 'Sèche' },
+                { k: 'maintain' as GoalType, l: 'Maintien' },
+                { k: 'bulk' as GoalType, l: 'Prise' },
+              ]).map((g) => (
+                <button
+                  key={g.k}
+                  onClick={() => setGoal(g.k)}
+                  className="h-11 rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
+                  style={goal === g.k
+                    ? { background: PALETTE.fg, color: PALETTE.bg, borderColor: PALETTE.fg }
+                    : { borderColor: PALETTE.border, color: PALETTE.muted }}
+                >
+                  {g.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <NL className="mb-2 block">Activité</NL>
+            <div className="space-y-2">
+              {[
+                { v: 1.2, l: 'Sédentaire', s: '0 séance' },
+                { v: 1.55, l: 'Modéré', s: '1–3 séances' },
+                { v: 1.75, l: 'Très actif', s: '4+ séances' },
+              ].map((a) => {
+                const active = Math.abs(activity - a.v) < 0.01;
+                return (
+                  <button
+                    key={a.v}
+                    onClick={() => setActivity(a.v)}
+                    className="w-full h-12 px-4 rounded-xl border flex items-center justify-between transition"
+                    style={{ borderColor: active ? PALETTE.fg : PALETTE.border }}
+                  >
+                    <span className="text-[13px] font-medium" style={{ color: PALETTE.fg }}>{a.l}</span>
+                    <div className="flex items-center gap-3">
+                      <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{a.s}</NN>
+                      <span
+                        className="h-3.5 w-3.5 rounded-full border"
+                        style={active ? { background: PALETTE.fg, borderColor: PALETTE.fg } : { borderColor: PALETTE.border }}
+                      />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <button
+            onClick={() => onSave({ weight, height, age, gender, activity, goal })}
+            disabled={isSaving}
+            className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] disabled:opacity-50 transition"
+            style={{ background: PALETTE.fg, color: PALETTE.bg }}
+          >
+            {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── Manual Entry Sheet ─────────────────────── */
+
+const ManualSheet = ({
+  open,
+  onClose,
+  onSave,
+  isSaving,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSave: (data: { name: string; calories: number; protein: number; carbs: number; fat: number }) => void;
+  isSaving: boolean;
+}) => {
+  const [name, setName] = useState('');
+  const [calories, setCalories] = useState('');
+  const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fat, setFat] = useState('');
+
+  if (!open) return null;
+
+  const handleSave = () => {
+    if (!name || !calories || !protein || !carbs || !fat) {
+      toast.error('Veuillez remplir tous les champs.');
+      return;
+    }
+    onSave({ name, calories: Number(calories), protein: Number(protein), carbs: Number(carbs), fat: Number(fat) });
+    setName(''); setCalories(''); setProtein(''); setCarbs(''); setFat('');
+  };
+
+  return (
+    <div className="absolute inset-0 z-50 flex items-end">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div
+        className="relative w-full rounded-t-[28px] border-t max-h-[88%] overflow-y-auto"
+        style={{ background: PALETTE.bg, borderColor: PALETTE.border }}
+      >
+        <div className="px-5 pt-3 pb-2 flex justify-center">
+          <div className="h-1 w-9 rounded-full" style={{ background: PALETTE.border }} />
+        </div>
+        <div className="px-5 pb-2 pt-1 flex items-center justify-between">
+          <div className="text-[16px] font-medium" style={{ color: PALETTE.fg }}>Saisie manuelle</div>
+          <button onClick={onClose} className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-[#f3f3f2]" style={{ color: PALETTE.fg }}>
+            <X size={16} />
+          </button>
+        </div>
+        <HDivider />
+
+        <div className="px-5 py-5 space-y-4">
+          <div>
+            <NL className="block mb-1.5">Nom du repas</NL>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex : Shaker protéiné"
+              className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[15px] font-medium"
+              style={{ borderColor: PALETTE.border, color: PALETTE.fg }}
+            />
+          </div>
+          <div>
+            <NL className="block mb-1.5">Calories (kcal)</NL>
+            <input
+              type="number"
+              value={calories}
+              onChange={(e) => setCalories(e.target.value)}
+              placeholder="0"
+              className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none font-mono tabular-nums text-[20px] font-medium"
+              style={{ borderColor: PALETTE.border, color: PALETTE.fg }}
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'Protéines', val: protein, set: setProtein },
+              { label: 'Glucides', val: carbs, set: setCarbs },
+              { label: 'Lipides', val: fat, set: setFat },
+            ].map((f) => (
+              <div key={f.label}>
+                <NL className="block mb-1.5 text-[9px]">{f.label} (g)</NL>
+                <input
+                  type="number"
+                  value={f.val}
+                  onChange={(e) => f.set(e.target.value)}
+                  placeholder="0"
+                  className="w-full h-10 px-2 rounded-xl border bg-transparent outline-none font-mono tabular-nums text-[18px] font-medium text-center"
+                  style={{ borderColor: PALETTE.border, color: PALETTE.fg }}
+                />
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] mt-2 disabled:opacity-50"
+            style={{ background: PALETTE.fg, color: PALETTE.bg }}
+          >
+            {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Ajouter au journal'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── Main Page ─────────────────────── */
+
+type ViewType = 'dashboard' | 'scanner' | 'analyzing' | 'result' | 'detail';
 
 export default function NutritionPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ZUSTAND GLOBAL STATES
   const { profile: appProfile, updateBodyweight } = useStore();
   const bodyWeight = appProfile?.body_weight || 80;
 
@@ -134,208 +1071,97 @@ export default function NutritionPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // ÉTATS UX
-  const [isScanningView, setIsScanningView] = useState(false);
+  const [view, setView] = useState<ViewType>('dashboard');
+  const [image, setImage] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<NutritionResponse | null>(null);
   const [selectedMeal, setSelectedMeal] = useState<HistoryItem | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // ÉTATS DÉTAILS REPAS
-  const [portionMode, setPortionMode] = useState<'fraction' | 'grams'>('fraction');
-  const [isEditingMacros, setIsEditingMacros] = useState(false);
-  const [editMacroProt, setEditMacroProt] = useState<number | ''>('');
-  const [editMacroCarbs, setEditMacroCarbs] = useState<number | ''>('');
-  const [editMacroFat, setEditMacroFat] = useState<number | ''>('');
-  const [customGrams, setCustomGrams] = useState<number | ''>('');
-
-  const openMealDetails = (meal: HistoryItem) => {
-    setSelectedMeal(meal);
-    setPortionMode('fraction');
-    setIsEditingMacros(false);
-    setEditMacroProt(meal.macros.protein);
-    setEditMacroCarbs(meal.macros.carbs);
-    setEditMacroFat(meal.macros.fat);
-    setCustomGrams(
-      meal.estimatedWeightGrams ? Math.round(meal.estimatedWeightGrams * meal.portion) : ''
-    );
-  };
-
-  // ÉTATS PARAMÈTRES (SETTINGS)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [editWeight, setEditWeight] = useState(bodyWeight);
-  const [editHeight, setEditHeight] = useState(nutritionProfile.height);
-  const [editAge, setEditAge] = useState(nutritionProfile.age);
-  const [editGender, setEditGender] = useState<GenderType>(nutritionProfile.gender);
-  const [editActivity, setEditActivity] = useState(nutritionProfile.activityLevel);
-  const [editGoal, setEditGoal] = useState<GoalType>(nutritionProfile.goal);
-
-  // Sync form when modal opens
-  useEffect(() => {
-    if (isSettingsOpen) {
-      const timer = setTimeout(() => {
-        setEditWeight(bodyWeight);
-        setEditHeight(nutritionProfile.height);
-        setEditAge(nutritionProfile.age);
-        setEditGender(nutritionProfile.gender);
-        setEditActivity(nutritionProfile.activityLevel);
-        setEditGoal(nutritionProfile.goal);
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-  }, [isSettingsOpen, bodyWeight, nutritionProfile]);
-
-  // ÉTATS MANUELS
-  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-  const [manualName, setManualName] = useState('');
-  const [manualCalories, setManualCalories] = useState<number | ''>('');
-  const [manualProtein, setManualProtein] = useState<number | ''>('');
-  const [manualCarbs, setManualCarbs] = useState<number | ''>('');
-  const [manualFat, setManualFat] = useState<number | ''>('');
-
-  // CALCULS DÉRIVÉS
   const targets = useMemo(
     () => calculateTargets(nutritionProfile, bodyWeight),
     [nutritionProfile, bodyWeight]
   );
 
-  const dailyNutrition = useMemo(() => {
-    return meals.reduce(
-      (acc, curr) => ({
-        calories: acc.calories + curr.calories,
-        protein: acc.protein + curr.macros.protein,
-        carbs: acc.carbs + curr.macros.carbs,
-        fat: acc.fat + curr.macros.fat,
-      }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0 }
-    );
-  }, [meals]);
-
-  // ÉTATS SCANNER
-  const [image, setImage] = useState<string | null>(null);
-  const [isScanningImage, setIsScanningImage] = useState(false);
-  const [result, setResult] = useState<NutritionResponse | null>(null);
-  const [showMicros, setShowMicros] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [portionValue, setPortionValue] = useState<number>(1);
+  const totals = useMemo(
+    () =>
+      meals.reduce(
+        (a, m) => ({
+          calories: a.calories + m.calories,
+          protein: a.protein + m.macros.protein,
+          carbs: a.carbs + m.macros.carbs,
+          fat: a.fat + m.macros.fat,
+        }),
+        { calories: 0, protein: 0, carbs: 0, fat: 0 }
+      ),
+    [meals]
+  );
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       const compressed = await compressImage(file);
       setImage(compressed);
-      setResult(null);
-      setPortionValue(1);
-      startScan(compressed);
-    } catch {
-      toast.error("Erreur lors de la capture de l'image");
-    }
-  };
-
-  const startScan = async (base64Image: string) => {
-    setIsScanningImage(true);
-    try {
+      setScanResult(null);
+      setView('analyzing');
       const response = await fetch('/api/nutrition/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64Image }),
+        body: JSON.stringify({ image: compressed }),
       });
-
       if (!response.ok) throw new Error('Analyse échouée');
-
       const data: NutritionResponse = await response.json();
-      setResult(data);
+      setScanResult(data);
+      setView('result');
     } catch {
       toast.error("L'IA n'a pas pu analyser cette image.");
       setImage(null);
-    } finally {
-      setIsScanningImage(false);
+      setView('scanner');
     }
   };
 
-  const resetScanner = () => {
-    setImage(null);
-    setResult(null);
-    setPortionValue(1);
-  };
-
-  const handleSaveSettings = async () => {
+  const handleSaveScanned = async (portion: number, macros: { protein: number; carbs: number; fat: number }) => {
+    if (!scanResult) return;
     setIsSaving(true);
+    const finalCalories = Math.round((macros.protein * 4 + macros.carbs * 4 + macros.fat * 9) * portion);
+    const finalProtein = Math.round(macros.protein * portion);
+    const finalCarbs = Math.round(macros.carbs * portion);
+    const finalFat = Math.round(macros.fat * portion);
     try {
-      if (editWeight !== bodyWeight) {
-        await updateBodyweight(editWeight);
-      }
-
-      updateProfile({
-        height: editHeight,
-        age: editAge,
-        gender: editGender,
-        activityLevel: editActivity,
-        goal: editGoal,
-      });
-
-      toast.success('Paramètres mis à jour !');
-      setIsSettingsOpen(false);
-    } catch {
-      toast.error('Erreur lors de la mise à jour');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleSaveScannedMeal = async () => {
-    if (!result) return;
-    setIsSaving(true);
-
-    // Application de la portion
-    const finalCalories = Math.round(result.calories * portionValue);
-    const finalProtein = Math.round(result.macros.protein * portionValue);
-    const finalCarbs = Math.round(result.macros.carbs * portionValue);
-    const finalFat = Math.round(result.macros.fat * portionValue);
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { error } = await supabase.from('nutrition_logs').insert({
+        await supabase.from('nutrition_logs').insert({
           user_id: user.id,
-          meal_name: result.mealName,
+          meal_name: scanResult.mealName,
           calories: finalCalories,
           protein: finalProtein,
           carbs: finalCarbs,
           fat: finalFat,
-          micros: result.micros,
+          micros: scanResult.micros,
           image_url: image,
         });
-
-        if (error) throw error;
       }
-
       const now = new Date();
       const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-
       addMeal({
         id: Math.random().toString(36).substring(2, 9),
         time: timeStr,
         timestamp: Date.now(),
-        mealName: result.mealName,
+        mealName: scanResult.mealName,
         calories: finalCalories,
-        macros: {
-          protein: finalProtein,
-          carbs: finalCarbs,
-          fat: finalFat,
-        },
-        micros: result.micros,
-        portion: portionValue,
-        baseCalories: result.calories,
-        baseMacros: result.macros,
-        estimatedWeightGrams: result.estimatedWeightGrams,
+        macros: { protein: finalProtein, carbs: finalCarbs, fat: finalFat },
+        micros: scanResult.micros,
+        portion,
+        baseCalories: scanResult.calories,
+        baseMacros: macros,
+        estimatedWeightGrams: scanResult.estimatedWeightGrams,
       });
-
       toast.success('Repas enregistré !');
-
-      resetScanner();
-      setIsScanningView(false);
+      setImage(null);
+      setScanResult(null);
+      setView('dashboard');
     } catch {
       toast.error("Erreur lors de l'enregistrement.");
     } finally {
@@ -343,64 +1169,55 @@ export default function NutritionPage() {
     }
   };
 
-  const handleManualSave = async () => {
-    if (
-      !manualName ||
-      manualCalories === '' ||
-      manualProtein === '' ||
-      manualCarbs === '' ||
-      manualFat === ''
-    ) {
-      toast.error('Veuillez remplir tous les champs.');
-      return;
-    }
-
+  const handleSaveSettings = async (data: {
+    weight: number; height: number; age: number;
+    gender: GenderType; activity: number; goal: GoalType;
+  }) => {
     setIsSaving(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      if (data.weight !== bodyWeight) await updateBodyweight(data.weight);
+      updateProfile({ height: data.height, age: data.age, gender: data.gender, activityLevel: data.activity, goal: data.goal });
+      toast.success('Paramètres mis à jour !');
+      setSettingsOpen(false);
+    } catch {
+      toast.error('Erreur lors de la mise à jour');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleManualSave = async (data: {
+    name: string; calories: number; protein: number; carbs: number; fat: number;
+  }) => {
+    setIsSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { error } = await supabase.from('nutrition_logs').insert({
+        await supabase.from('nutrition_logs').insert({
           user_id: user.id,
-          meal_name: manualName,
-          calories: Number(manualCalories),
-          protein: Number(manualProtein),
-          carbs: Number(manualCarbs),
-          fat: Number(manualFat),
+          meal_name: data.name,
+          calories: data.calories,
+          protein: data.protein,
+          carbs: data.carbs,
+          fat: data.fat,
           micros: [],
           image_url: null,
         });
-
-        if (error) throw error;
       }
-
       const now = new Date();
       const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-
       addMeal({
         id: Math.random().toString(36).substring(2, 9),
         time: timeStr,
         timestamp: Date.now(),
-        mealName: manualName,
-        calories: Number(manualCalories),
-        macros: {
-          protein: Number(manualProtein),
-          carbs: Number(manualCarbs),
-          fat: Number(manualFat),
-        },
+        mealName: data.name,
+        calories: data.calories,
+        macros: { protein: data.protein, carbs: data.carbs, fat: data.fat },
         micros: [],
         portion: 1,
       });
-
-      toast.success('Repas manuel ajouté !');
-
-      setManualName('');
-      setManualCalories('');
-      setManualProtein('');
-      setManualCarbs('');
-      setManualFat('');
-      setIsManualModalOpen(false);
+      toast.success('Repas ajouté !');
+      setManualOpen(false);
     } catch {
       toast.error("Erreur lors de l'ajout manuel.");
     } finally {
@@ -408,1069 +1225,318 @@ export default function NutritionPage() {
     }
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDelete = (id: string) => {
     removeMeal(id);
     toast.success('Repas supprimé.');
   };
 
-  const handleSaveMacros = () => {
-    if (!selectedMeal) return;
-    const newProt = Number(editMacroProt) || 0;
-    const newCarbs = Number(editMacroCarbs) || 0;
-    const newFat = Number(editMacroFat) || 0;
-
-    const newBaseProt = newProt / selectedMeal.portion;
-    const newBaseCarbs = newCarbs / selectedMeal.portion;
-    const newBaseFat = newFat / selectedMeal.portion;
-
-    updateMealMacros(selectedMeal.id, {
-      protein: newBaseProt,
-      carbs: newBaseCarbs,
-      fat: newBaseFat,
-    });
-
-    setIsEditingMacros(false);
-
-    const newBaseCals = newBaseProt * 4 + newBaseCarbs * 4 + newBaseFat * 9;
-    setSelectedMeal({
-      ...selectedMeal,
-      baseMacros: { protein: newBaseProt, carbs: newBaseCarbs, fat: newBaseFat },
-      baseCalories: newBaseCals,
-      macros: {
-        protein: newProt,
-        carbs: newCarbs,
-        fat: newFat,
-      },
-      calories: Math.round(newBaseCals * selectedMeal.portion),
-    });
-    toast.success('Macros mises à jour');
-  };
-
-  const handleCustomGramsChange = (val: string) => {
-    if (!selectedMeal || !selectedMeal.estimatedWeightGrams) return;
-    const g = Number(val);
-    setCustomGrams(val === '' ? '' : g);
-    if (g > 0) {
-      const newPortion = g / selectedMeal.estimatedWeightGrams;
-      updateMealPortion(selectedMeal.id, newPortion);
-
-      const baseCals = selectedMeal.baseCalories ?? selectedMeal.calories / selectedMeal.portion;
-      const baseProt =
-        selectedMeal.baseMacros?.protein ?? selectedMeal.macros.protein / selectedMeal.portion;
-      const baseCarbs =
-        selectedMeal.baseMacros?.carbs ?? selectedMeal.macros.carbs / selectedMeal.portion;
-      const baseFat =
-        selectedMeal.baseMacros?.fat ?? selectedMeal.macros.fat / selectedMeal.portion;
-
-      setSelectedMeal({
-        ...selectedMeal,
-        portion: newPortion,
-        calories: Math.round(baseCals * newPortion),
-        macros: {
-          protein: Math.round(baseProt * newPortion),
-          carbs: Math.round(baseCarbs * newPortion),
-          fat: Math.round(baseFat * newPortion),
-        },
-      });
-    }
+  const openMealDetail = (meal: HistoryItem) => {
+    setSelectedMeal(meal);
+    setView('detail');
   };
 
   if (!isHydrated) return null;
 
-  // VUE DASHBOARD (ÉTAT A - PREMIUM)
-  const renderDashboard = () => {
-    const radius = 65;
-    const stroke = 8;
-    const normalizedRadius = radius - stroke * 2;
-    const circumference = normalizedRadius * 2 * Math.PI;
-    const pctCal = Math.min(dailyNutrition.calories / targets.targetCalories, 1);
-    const strokeDashoffset = circumference - pctCal * circumference;
+  /* ── Dashboard ── */
+  const renderDashboard = () => (
+    <div className="flex flex-col h-full" style={{ background: PALETTE.bg }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-3 pb-4">
+        <button
+          onClick={() => router.back()}
+          className="h-10 w-10 -ml-2 flex items-center justify-center rounded-full transition hover:bg-[#f3f3f2] active:scale-95"
+          style={{ color: PALETTE.fg }}
+        >
+          <ChevronLeft size={22} strokeWidth={1.75} />
+        </button>
+        <div className="text-[11px] font-medium uppercase tracking-[0.28em]" style={{ color: PALETTE.fg }}>
+          Nutrition
+        </div>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="h-10 w-10 -mr-2 flex items-center justify-center rounded-full transition hover:bg-[#f3f3f2] active:scale-95"
+          style={{ color: PALETTE.fg }}
+        >
+          <SettingsIcon size={20} />
+        </button>
+      </div>
 
-    return (
-      <motion.div
-        key="dashboard"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="flex-1 flex flex-col w-full max-w-md mx-auto"
-      >
-        <header className="mb-8 flex items-center justify-between bg-slate-900 text-slate-50 p-6 rounded-b-[2.5rem] shadow-md -mx-4 -mt-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => router.back()}
-              className="text-white hover:bg-slate-800 rounded-full"
+      <div className="flex-1 overflow-y-auto pb-32">
+        {/* Date strip */}
+        <div className="px-5 mb-4 flex items-center justify-between">
+          <div>
+            <div className="text-[20px] font-medium leading-tight" style={{ color: PALETTE.fg }}>Aujourd&apos;hui</div>
+            <NN className="text-[11px] tracking-[0.05em]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+              {new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long' })}
+            </NN>
+          </div>
+          <div
+            className="flex items-center gap-2 px-2.5 py-1 rounded-full border"
+            style={{ borderColor: PALETTE.border }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: PALETTE.fg }} />
+            <NL className="text-[9px] tracking-[0.2em]">
+              {{ cut: 'Sèche', maintain: 'Maintien', bulk: 'Prise' }[nutritionProfile.goal]}
+            </NL>
+          </div>
+        </div>
+
+        {/* Ring */}
+        <div className="py-2">
+          <CalorieRing consumed={totals.calories} goal={targets.targetCalories} />
+        </div>
+
+        {/* Stat strip */}
+        <div
+          className="mx-5 mt-5 mb-7 grid grid-cols-3 border rounded-2xl overflow-hidden"
+          style={{ borderColor: PALETTE.border }}
+        >
+          {[
+            { l: 'Repas', v: meals.length, s: 'log' },
+            { l: 'Brûlées', v: 412, s: 'kcal' },
+            { l: 'Net', v: totals.calories - 412, s: 'kcal' },
+          ].map((s, i) => (
+            <div
+              key={s.l}
+              className="px-3 py-3 text-center"
+              style={i > 0 ? { borderLeft: `1px solid ${PALETTE.border}` } : undefined}
             >
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-            <div className="space-y-1">
-              <h1 className="text-xl font-black italic tracking-tight uppercase">NUTRITION</h1>
-              <div className="flex items-center gap-1.5 text-blue-400">
-                <Target className="w-3 h-3" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">
-                  Objectif : {goalLabels[nutritionProfile.goal].toUpperCase()}
-                </span>
+              <NN className="block text-[18px] font-medium leading-none" style={{ color: PALETTE.fg } as React.CSSProperties}>{s.v}</NN>
+              <div className="mt-1.5 flex items-center justify-center gap-1">
+                <NL className="text-[8px] tracking-[0.22em]">{s.l}</NL>
+                <NN className="text-[8px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{s.s}</NN>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <span className="text-2xl font-black italic">{targets.targetCalories}</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                KCAL CIBLE
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsSettingsOpen(true)}
-              className="text-slate-400 hover:text-white rounded-full transition-colors"
-            >
-              <Settings className="w-5 h-5" />
-            </Button>
-          </div>
-        </header>
+          ))}
+        </div>
 
-        {/* Cercle Fin Calories */}
-        <div className="flex justify-center mb-8">
-          <div className="relative flex items-center justify-center">
-            <svg height={radius * 2} width={radius * 2} className="-rotate-90">
-              <circle
-                stroke="#f1f5f9"
-                fill="transparent"
-                strokeWidth={stroke}
-                r={normalizedRadius}
-                cx={radius}
-                cy={radius}
-              />
-              <circle
-                stroke="#2563eb"
-                fill="transparent"
-                strokeWidth={stroke}
-                strokeDasharray={circumference + ' ' + circumference}
-                style={{ strokeDashoffset }}
-                strokeLinecap="round"
-                r={normalizedRadius}
-                cx={radius}
-                cy={radius}
-                className="transition-all duration-1000 ease-out"
-              />
-            </svg>
-            <div className="absolute flex flex-col items-center justify-center">
-              <span className="text-3xl font-black text-slate-900 italic tracking-tighter">
-                {dailyNutrition.calories}
-              </span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                KCAL
-              </span>
-            </div>
+        {/* Macros */}
+        <div className="px-5 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <NL>Macronutriments</NL>
+            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>P·G·L &nbsp; 30 / 45 / 25</NN>
+          </div>
+          <div className="space-y-5">
+            <MacroBar label="Protéines" current={totals.protein} target={targets.targetProtein} shade="fg" />
+            <MacroBar label="Glucides" current={totals.carbs} target={targets.targetCarbs} shade="mid" />
+            <MacroBar label="Lipides" current={totals.fat} target={targets.targetFat} shade="low" />
           </div>
         </div>
 
-        {/* Macros Fines */}
-        <div className="space-y-5 px-2 mb-10">
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider">
-              <span className="text-slate-500">Protéines</span>
-              <span className="text-slate-900">
-                {dailyNutrition.protein}{' '}
-                <span className="text-slate-400">/ {targets.targetProtein}g</span>
-              </span>
-            </div>
-            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{
-                  width: `${Math.min((dailyNutrition.protein / targets.targetProtein) * 100, 100)}%`,
-                }}
-                className="h-full bg-blue-600 rounded-full"
-              />
-            </div>
+        {/* Food log */}
+        <div className="px-5">
+          <div className="flex items-center justify-between mb-2">
+            <NL>Journal du jour</NL>
+            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{meals.length} entrées</NN>
           </div>
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider">
-              <span className="text-slate-500">Glucides</span>
-              <span className="text-slate-900">
-                {dailyNutrition.carbs}{' '}
-                <span className="text-slate-400">/ {targets.targetCarbs}g</span>
-              </span>
-            </div>
-            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{
-                  width: `${Math.min((dailyNutrition.carbs / targets.targetCarbs) * 100, 100)}%`,
-                }}
-                className="h-full bg-emerald-600 rounded-full"
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider">
-              <span className="text-slate-500">Lipides</span>
-              <span className="text-slate-900">
-                {dailyNutrition.fat} <span className="text-slate-400">/ {targets.targetFat}g</span>
-              </span>
-            </div>
-            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{
-                  width: `${Math.min((dailyNutrition.fat / targets.targetFat) * 100, 100)}%`,
-                }}
-                className="h-full bg-orange-500 rounded-full"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Historique */}
-        <div className="space-y-4 px-2 flex-1 mb-8">
-          <h2 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">
-            Historique du jour
-          </h2>
-          <div className="space-y-3">
-            <AnimatePresence>
-              {meals.map((item) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                >
-                  <Card
-                    className="border-none shadow-sm rounded-2xl overflow-hidden bg-white cursor-pointer hover:bg-slate-50 transition-colors"
-                    onClick={() => openMealDetails(item)}
-                  >
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex-1 min-w-0 pr-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-bold text-slate-400 shrink-0">
-                            {item.time}
-                          </span>
-                          <span className="text-sm font-black text-slate-900 italic uppercase leading-tight truncate">
-                            {item.mealName}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                          <span className="text-blue-600">{item.macros.protein}g P</span>
-                          <span className="text-emerald-600">{item.macros.carbs}g G</span>
-                          <span className="text-orange-500">{item.macros.fat}g L</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 shrink-0">
-                        <div className="text-right">
-                          <span className="text-lg font-black text-slate-900 italic leading-none">
-                            {item.calories}
-                          </span>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">
-                            Kcal
-                          </span>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => handleDelete(item.id, e)}
-                          className="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full -mr-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-            {meals.length === 0 && (
-              <p className="text-center text-xs font-bold uppercase tracking-widest text-slate-400 py-6">
-                Aucun repas scanné
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 w-full max-w-md px-4">
-          <Button
-            onClick={() => setIsManualModalOpen(true)}
-            variant="outline"
-            className="h-16 flex-1 rounded-2xl bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 shadow-xl shadow-blue-600/10 transition-all active:scale-95 flex items-center justify-center gap-2 group"
+          <div
+            className="border rounded-2xl overflow-hidden"
+            style={{ borderColor: PALETTE.border, background: PALETTE.surface }}
           >
-            <Plus className="w-6 h-6 group-hover:scale-110 transition-transform stroke-[3px]" />
-            <span className="font-black text-xs uppercase italic tracking-wider">Manuel</span>
-          </Button>
-          <Button
-            onClick={() => setIsScanningView(true)}
-            className="h-16 flex-[2] rounded-2xl bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-600/30 transition-all active:scale-95 flex items-center justify-center gap-3 group"
-          >
-            <Camera className="w-6 h-6 group-hover:scale-110 transition-transform" />
-            <span className="font-black text-sm uppercase italic tracking-wider">Scanner</span>
-          </Button>
-        </div>
-      </motion.div>
-    );
-  };
-
-  // VUE SCANNER (ÉTAT B - PREMIUM)
-  const renderScanner = () => {
-    const finalCalories = result ? Math.round(result.calories * portionValue) : 0;
-    const finalProtein = result ? Math.round(result.macros.protein * portionValue) : 0;
-    const finalCarbs = result ? Math.round(result.macros.carbs * portionValue) : 0;
-    const finalFat = result ? Math.round(result.macros.fat * portionValue) : 0;
-
-    return (
-      <motion.div
-        key="scanner"
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 50 }}
-        className="flex-1 flex flex-col w-full max-w-md mx-auto relative z-50 bg-slate-900 absolute inset-0 min-h-screen"
-      >
-        <header className="flex items-center justify-between p-6 sticky top-0 z-10 mb-4 bg-slate-900/80 backdrop-blur-md">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsScanningView(false)}
-            className="rounded-full bg-white/10 shadow-sm text-white hover:bg-white/20 border border-slate-700"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-          <h1 className="text-sm font-black text-white italic uppercase tracking-widest">
-            NUTRITION
-          </h1>
-          <div className="w-10" />
-        </header>
-
-        <div className="px-4 pb-12 flex-1 flex flex-col">
-          <section className="relative aspect-square w-full rounded-[2rem] overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center shadow-lg shrink-0">
-            {image ? (
-              <>
-                <Image
-                  src={image}
-                  alt="Preview"
-                  fill
-                  className={cn(
-                    'object-cover transition-opacity duration-500',
-                    isScanningImage ? 'opacity-40' : 'opacity-100'
-                  )}
-                  unoptimized
-                />
-
-                {isScanningImage && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-pulse z-10">
-                    <Loader2 className="w-10 h-10 text-blue-400 animate-spin mb-4" />
-                    <span className="text-white font-black italic tracking-widest uppercase text-xs">
-                      Analyse en cours...
-                    </span>
-                  </div>
-                )}
-              </>
+            {meals.length === 0 ? (
+              <div className="py-8 text-center">
+                <NL>Aucun repas enregistré</NL>
+              </div>
             ) : (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex flex-col items-center gap-4 w-full h-full justify-center group"
-              >
-                <div className="w-20 h-20 rounded-full bg-slate-700/50 flex items-center justify-center text-blue-400 group-active:scale-90 transition-transform">
-                  <Camera className="w-8 h-8" />
+              meals.map((m, i) => (
+                <div key={m.id} style={i > 0 ? { borderTop: `1px solid ${PALETTE.border}` } : undefined}>
+                  <MealRow meal={m} onOpen={openMealDetail} onDelete={handleDelete} />
                 </div>
-                <span className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">
-                  Scanner votre repas
-                </span>
-              </button>
+              ))
             )}
-
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={handleCapture}
-            />
-          </section>
-
-          <AnimatePresence>
-            {result && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-6 flex flex-col gap-4 mb-20"
-              >
-                <Card className="border-none shadow-xl bg-slate-800 text-white overflow-hidden rounded-[2rem]">
-                  <CardHeader className="pb-0 pt-6 px-6">
-                    <div className="flex justify-between items-start gap-4">
-                      <CardTitle className="text-xl font-black italic uppercase leading-tight">
-                        {result.mealName}
-                      </CardTitle>
-                      <Badge
-                        variant="outline"
-                        className="text-blue-400 border-blue-400/30 font-bold text-[8px] uppercase tracking-widest shrink-0"
-                      >
-                        Précision IA
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-6 space-y-6">
-                    {/* Sélecteur de Portions Granulaire */}
-                    <div className="space-y-3 pt-2">
-                      <Label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em] flex items-center gap-2">
-                        <Utensils className="w-3 h-3 text-blue-400" /> Fraction Consommée
-                      </Label>
-                      <div className="flex gap-2 bg-slate-900/50 p-2 rounded-2xl overflow-x-auto scrollbar-hide border border-slate-700/50 snap-x">
-                        {PORTIONS.map((p) => (
-                          <Button
-                            key={p.label}
-                            variant="ghost"
-                            onClick={() => setPortionValue(p.value)}
-                            className={cn(
-                              'shrink-0 rounded-xl h-14 w-16 font-black text-sm transition-all snap-center',
-                              Math.abs(portionValue - p.value) < 0.001
-                                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-105'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-                            )}
-                          >
-                            {p.label}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="bg-slate-700 p-3 rounded-2xl">
-                        <Flame className="w-6 h-6 text-blue-400 fill-current" />
-                      </div>
-                      <div>
-                        <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.2em]">
-                          Énergie
-                        </p>
-                        <p className="text-3xl font-black italic">
-                          {finalCalories}{' '}
-                          <span className="text-xs font-bold text-slate-400 not-italic tracking-normal">
-                            KCAL
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="bg-slate-700/50 px-4 py-3 rounded-2xl border border-slate-600/50">
-                        <span className="text-blue-400 font-black text-lg italic block">
-                          {finalProtein}g
-                        </span>
-                        <span className="text-slate-400 text-[8px] font-bold uppercase tracking-widest">
-                          Protéines
-                        </span>
-                      </div>
-                      <div className="bg-slate-700/50 px-4 py-3 rounded-2xl border border-slate-600/50">
-                        <span className="text-emerald-400 font-black text-lg italic block">
-                          {finalCarbs}g
-                        </span>
-                        <span className="text-slate-400 text-[8px] font-bold uppercase tracking-widest">
-                          Glucides
-                        </span>
-                      </div>
-                      <div className="bg-slate-700/50 px-4 py-3 rounded-2xl border border-slate-600/50">
-                        <span className="text-orange-400 font-black text-lg italic block">
-                          {finalFat}g
-                        </span>
-                        <span className="text-slate-400 text-[8px] font-bold uppercase tracking-widest">
-                          Lipides
-                        </span>
-                      </div>
-                    </div>
-
-                    <Separator className="bg-slate-700" />
-
-                    <div>
-                      <button
-                        onClick={() => setShowMicros(!showMicros)}
-                        className="w-full flex justify-between items-center py-1 group"
-                      >
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                          Micronutriments (Base 1x)
-                        </span>
-                        {showMicros ? (
-                          <ChevronUp className="w-4 h-4 text-slate-400 group-hover:text-blue-400" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-blue-400" />
-                        )}
-                      </button>
-
-                      <AnimatePresence>
-                        {showMicros && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="pt-4 grid grid-cols-2 gap-x-6 gap-y-2">
-                              {result.micros.map((micro, i) => (
-                                <div
-                                  key={i}
-                                  className="flex justify-between items-center text-[10px] border-b border-slate-700/50 pb-1"
-                                >
-                                  <span className="text-slate-400 font-bold uppercase tracking-wider">
-                                    {micro.name}
-                                  </span>
-                                  <span className="font-black text-slate-200">{micro.amount}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* BOUTONS D'ACTION */}
-                <div className="flex flex-col gap-3 mt-4 pb-8">
-                  <Button
-                    onClick={handleSaveScannedMeal}
-                    disabled={isSaving}
-                    className="w-full h-16 text-lg font-black italic uppercase rounded-2xl shadow-xl shadow-blue-500/20 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all"
-                  >
-                    {isSaving ? (
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    ) : (
-                      <>
-                        <Check className="w-6 h-6 mr-3 stroke-[3px]" />
-                        VALIDER CE REPAS
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={resetScanner}
-                    disabled={isSaving}
-                    className="w-full h-16 text-sm font-bold uppercase tracking-widest rounded-2xl border-slate-700 text-slate-300 bg-transparent hover:bg-slate-800 hover:text-white active:scale-95 transition-all"
-                  >
-                    <RotateCcw className="w-5 h-5 mr-3" />
-                    REPRENDRE LA PHOTO
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          </div>
         </div>
-      </motion.div>
-    );
-  };
+      </div>
 
+      {/* FABs */}
+      <div
+        className="absolute left-0 right-0 bottom-0 px-5 pb-6 pt-10 pointer-events-none"
+        style={{ background: `linear-gradient(to top, ${PALETTE.bg} 60%, transparent)` }}
+      >
+        <div className="pointer-events-auto flex gap-2.5">
+          <button
+            onClick={() => setManualOpen(true)}
+            className="h-14 px-4 rounded-2xl border flex items-center gap-2 active:scale-[0.98] transition hover:bg-[#f3f3f2]"
+            style={{ borderColor: PALETTE.border, background: PALETTE.surface, color: PALETTE.fg }}
+          >
+            <Plus size={18} strokeWidth={1.75} />
+            <span className="text-[11px] font-medium uppercase tracking-[0.18em]">Manuel</span>
+          </button>
+          <button
+            onClick={() => { setView('scanner'); }}
+            className="h-14 flex-1 rounded-2xl flex items-center justify-center gap-2.5 active:scale-[0.98] transition hover:opacity-90"
+            style={{ background: PALETTE.fg, color: PALETTE.bg }}
+          >
+            <Camera size={18} strokeWidth={1.75} />
+            <span className="text-[12px] font-medium uppercase tracking-[0.22em]">Scan repas</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ── Scanner ── */
+  const renderScanner = () => (
+    <div className="absolute inset-0 flex flex-col" style={{ background: PALETTE.carbon }}>
+      <div className="flex items-center justify-between px-5 pt-3 pb-4">
+        <button
+          onClick={() => setView('dashboard')}
+          className="h-10 w-10 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
+        >
+          <ChevronLeft size={22} strokeWidth={1.75} />
+        </button>
+        <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">Scanner</div>
+        <div className="h-10 w-10 -mr-2 flex items-center justify-center text-white/40">
+          <Camera size={18} />
+        </div>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center px-6">
+        <div
+          className="relative w-full rounded-[28px] overflow-hidden"
+          style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 8px, transparent 8px 16px)`,
+            }}
+          />
+          {/* Rule-of-thirds grid */}
+          <div className="absolute inset-0 flex">
+            <div className="flex-1 border-r border-white/5" />
+            <div className="flex-1 border-r border-white/5" />
+            <div className="flex-1" />
+          </div>
+          <div className="absolute inset-0 flex flex-col">
+            <div className="flex-1 border-b border-white/5" />
+            <div className="flex-1 border-b border-white/5" />
+            <div className="flex-1" />
+          </div>
+          {/* Corner brackets */}
+          <div className="absolute inset-4 text-white/80">
+            <CornerBracket position="tl" />
+            <CornerBracket position="tr" />
+            <CornerBracket position="bl" />
+            <CornerBracket position="br" />
+          </div>
+          {/* Reticle */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-px w-3 bg-white/40" />
+            <div className="absolute h-3 w-px bg-white/40" />
+            <div className="absolute h-10 w-10 rounded-full border border-white/15" />
+          </div>
+          <div className="absolute bottom-4 left-0 right-0 text-center">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+              <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+              <NL className="text-white/80 text-[9px] tracking-[0.22em]">Cadrer le plat</NL>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-6 pb-10 pt-4">
+        <div className="flex items-center justify-center gap-6 mb-6">
+          <NL className="text-white/40 tracking-[0.22em]">Galerie</NL>
+          <NL className="text-white tracking-[0.22em]">Scan IA</NL>
+          <NL className="text-white/40 tracking-[0.22em]">Code-barres</NL>
+        </div>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
+          >
+            <ImageIcon size={18} />
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="relative h-20 w-20 rounded-full border-2 border-white/80 flex items-center justify-center active:scale-95 transition"
+          >
+            <span className="h-[60px] w-[60px] rounded-full bg-white" />
+          </button>
+          <button
+            onClick={() => { setImage(null); setScanResult(null); }}
+            className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
+          >
+            <RotateCcw size={18} />
+          </button>
+        </div>
+      </div>
+
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        ref={fileInputRef}
+        onChange={handleCapture}
+      />
+    </div>
+  );
+
+  /* ── Compose view ── */
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 relative p-4 pb-28">
-      <AnimatePresence mode="wait">
-        {isScanningView ? renderScanner() : renderDashboard()}
-      </AnimatePresence>
+    <div
+      className="relative min-h-screen overflow-hidden"
+      style={{ ...cssVars, background: PALETTE.bg } as React.CSSProperties}
+    >
+      <div className="relative h-screen overflow-hidden" style={{ maxWidth: 480, margin: '0 auto' }}>
+        {view === 'dashboard' && renderDashboard()}
+        {view === 'scanner' && renderScanner()}
+        {view === 'analyzing' && (
+          <AnalyzingView onCancel={() => { setView('scanner'); setImage(null); }} />
+        )}
+        {view === 'result' && scanResult && (
+          <ResultView
+            initial={{
+              ...scanResult,
+              id: undefined,
+              time: undefined,
+              portion: 1,
+              baseCalories: scanResult.calories,
+              baseMacros: scanResult.macros,
+            }}
+            image={image}
+            onBack={() => setView('scanner')}
+            onSave={handleSaveScanned}
+            mode="scan"
+            isSaving={isSaving}
+          />
+        )}
+        {view === 'detail' && selectedMeal && (
+          <ResultView
+            initial={selectedMeal}
+            image={null}
+            onBack={() => { setSelectedMeal(null); setView('dashboard'); }}
+            onSave={(portion, macros) => {
+              updateMealPortion(selectedMeal.id, portion);
+              updateMealMacros(selectedMeal.id, macros);
+              setSelectedMeal(null);
+              setView('dashboard');
+              toast.success('Repas mis à jour');
+            }}
+            onUpdatePortion={(p) => updateMealPortion(selectedMeal.id, p)}
+            onUpdateMacros={(m) => updateMealMacros(selectedMeal.id, m)}
+            mode="detail"
+            isSaving={isSaving}
+          />
+        )}
 
-      {/* DIALOG PARAMÈTRES (SETTINGS) */}
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="max-w-md rounded-[2rem] p-6 bg-white overflow-y-auto max-h-[90vh]">
-          <DialogHeader className="mb-4 text-left">
-            <DialogTitle className="text-xl font-black italic uppercase leading-tight text-slate-900 flex items-center gap-2">
-              <Settings className="w-5 h-5 text-blue-600 stroke-[3px]" /> Mes Paramètres
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
-                  <Scale className="w-3 h-3 text-blue-500" /> Poids (kg)
-                </Label>
-                <Input
-                  type="number"
-                  value={editWeight}
-                  onChange={(e) => setEditWeight(Number(e.target.value) || 0)}
-                  className="h-14 rounded-2xl text-xl font-black text-center bg-slate-50 border-slate-200"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
-                  <Activity className="w-3 h-3 text-emerald-500" /> Taille (cm)
-                </Label>
-                <Input
-                  type="number"
-                  value={editHeight}
-                  onChange={(e) => setEditHeight(Number(e.target.value) || 0)}
-                  className="h-14 rounded-2xl text-xl font-black text-center bg-slate-50 border-slate-200"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                  Âge
-                </Label>
-                <Input
-                  type="number"
-                  value={editAge}
-                  onChange={(e) => setEditAge(Number(e.target.value) || 0)}
-                  className="h-14 rounded-2xl text-xl font-black text-center bg-slate-50 border-slate-200"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                  Sexe
-                </Label>
-                <div className="flex gap-2">
-                  <Button
-                    variant={editGender === 'M' ? 'default' : 'outline'}
-                    onClick={() => setEditGender('M')}
-                    className={cn(
-                      'flex-1 h-14 rounded-2xl font-black text-lg',
-                      editGender === 'M'
-                        ? 'bg-blue-600 text-white'
-                        : 'text-slate-400 border-slate-200'
-                    )}
-                  >
-                    H
-                  </Button>
-                  <Button
-                    variant={editGender === 'F' ? 'default' : 'outline'}
-                    onClick={() => setEditGender('F')}
-                    className={cn(
-                      'flex-1 h-14 rounded-2xl font-black text-lg',
-                      editGender === 'F'
-                        ? 'bg-pink-500 hover:bg-pink-600 text-white border-pink-500'
-                        : 'text-slate-400 border-slate-200'
-                    )}
-                  >
-                    F
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <Separator className="bg-slate-100" />
-
-            <div className="space-y-3">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                Niveau d&apos;activité
-              </Label>
-              <div className="flex flex-col gap-2">
-                {[
-                  { val: 1.2, label: 'Sédentaire' },
-                  { val: 1.55, label: 'Modéré (1-3 séances/sem)' },
-                  { val: 1.75, label: 'Très Actif (4+ séances/sem)' },
-                ].map((act) => (
-                  <Button
-                    key={act.val}
-                    variant="outline"
-                    onClick={() => setEditActivity(act.val)}
-                    className={cn(
-                      'w-full justify-start h-12 rounded-xl font-black text-xs uppercase tracking-wider transition-all',
-                      Math.abs(editActivity - act.val) < 0.01
-                        ? 'bg-slate-800 text-white border-slate-800'
-                        : 'text-slate-500 border-slate-200'
-                    )}
-                  >
-                    {act.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <Separator className="bg-slate-100" />
-
-            <div className="space-y-3">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                Objectif Nutritionnel
-              </Label>
-              <div className="flex flex-col gap-2">
-                {(['cut', 'maintain', 'bulk'] as GoalType[]).map((g) => (
-                  <Button
-                    key={g}
-                    variant="outline"
-                    onClick={() => setEditGoal(g)}
-                    className={cn(
-                      'w-full justify-start h-14 rounded-xl font-black uppercase italic tracking-wider text-sm transition-all',
-                      editGoal === g
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
-                        : 'text-slate-500 border-slate-200'
-                    )}
-                  >
-                    <Target
-                      className={cn(
-                        'w-5 h-5 mr-3',
-                        editGoal === g ? 'text-blue-200' : 'text-slate-400'
-                      )}
-                    />
-                    {goalLabels[g]}
-                    {editGoal === g && (
-                      <Check className="ml-auto w-5 h-5 text-white stroke-[3px]" />
-                    )}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <Button
-              onClick={handleSaveSettings}
-              disabled={isSaving}
-              className="w-full h-16 mt-4 text-sm font-black italic uppercase rounded-2xl shadow-xl shadow-blue-500/20 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all"
-            >
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'ENREGISTRER'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG DÉTAILS REPAS */}
-      <Dialog open={!!selectedMeal} onOpenChange={(open) => !open && setSelectedMeal(null)}>
-        <DialogContent className="max-w-md rounded-[2rem] p-6 bg-white overflow-y-auto max-h-[90vh]">
-          {selectedMeal && (
-            <>
-              <DialogHeader className="mb-4 text-left">
-                <div className="flex items-center justify-between mb-2">
-                  <Badge
-                    variant="secondary"
-                    className="bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-[10px] uppercase tracking-widest border-none"
-                  >
-                    {selectedMeal.time}
-                  </Badge>
-
-                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg">
-                    <button
-                      onClick={() => setPortionMode('fraction')}
-                      className={cn(
-                        'px-2 py-1 text-[9px] font-black uppercase tracking-wider rounded-md transition-all',
-                        portionMode === 'fraction'
-                          ? 'bg-white shadow-sm text-blue-600'
-                          : 'text-slate-400 hover:text-slate-600'
-                      )}
-                    >
-                      Frac.
-                    </button>
-                    {selectedMeal.estimatedWeightGrams && (
-                      <button
-                        onClick={() => setPortionMode('grams')}
-                        className={cn(
-                          'px-2 py-1 text-[9px] font-black uppercase tracking-wider rounded-md transition-all',
-                          portionMode === 'grams'
-                            ? 'bg-white shadow-sm text-blue-600'
-                            : 'text-slate-400 hover:text-slate-600'
-                        )}
-                      >
-                        Grammes
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <DialogTitle className="text-2xl font-black italic uppercase leading-tight text-slate-900">
-                  {selectedMeal.mealName}
-                </DialogTitle>
-
-                <div className="mt-3 flex items-center">
-                  {portionMode === 'fraction' ? (
-                    <Select
-                      value={selectedMeal.portion.toString()}
-                      onValueChange={(val) => {
-                        if (!val) return;
-                        const newPortion = parseFloat(val);
-                        updateMealPortion(selectedMeal.id, newPortion);
-
-                        const baseCals =
-                          selectedMeal.baseCalories ?? selectedMeal.calories / selectedMeal.portion;
-                        const baseProt =
-                          selectedMeal.baseMacros?.protein ??
-                          selectedMeal.macros.protein / selectedMeal.portion;
-                        const baseCarbs =
-                          selectedMeal.baseMacros?.carbs ??
-                          selectedMeal.macros.carbs / selectedMeal.portion;
-                        const baseFat =
-                          selectedMeal.baseMacros?.fat ??
-                          selectedMeal.macros.fat / selectedMeal.portion;
-
-                        setSelectedMeal({
-                          ...selectedMeal,
-                          portion: newPortion,
-                          calories: Math.round(baseCals * newPortion),
-                          macros: {
-                            protein: Math.round(baseProt * newPortion),
-                            carbs: Math.round(baseCarbs * newPortion),
-                            fat: Math.round(baseFat * newPortion),
-                          },
-                          baseCalories: baseCals,
-                          baseMacros: {
-                            protein: baseProt,
-                            carbs: baseCarbs,
-                            fat: baseFat,
-                          },
-                        });
-                      }}
-                    >
-                      <SelectTrigger className="h-8 w-fit border border-slate-200 text-slate-700 bg-slate-50 font-black text-[11px] uppercase tracking-widest rounded-xl px-3 outline-none focus:ring-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-400">PORTION :</span>
-                          <SelectValue />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl border border-slate-200 bg-white z-[100] shadow-xl">
-                        {PORTIONS.map((p) => (
-                          <SelectItem
-                            key={p.value}
-                            value={p.value.toString()}
-                            className="font-bold text-sm cursor-pointer"
-                          >
-                            {p.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="flex items-center gap-2 w-1/2">
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        value={customGrams}
-                        onChange={(e) => handleCustomGramsChange(e.target.value)}
-                        placeholder="Ex: 150"
-                        className="h-8 text-sm font-black rounded-xl bg-slate-50 border-slate-200 text-center"
-                      />
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        Grammes
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </DialogHeader>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 bg-slate-900 text-white p-4 rounded-2xl">
-                  <div className="bg-orange-500 p-3 rounded-xl">
-                    <Flame className="w-6 h-6 fill-current" />
-                  </div>
-                  <div>
-                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                      Calories
-                    </p>
-                    <p className="text-3xl font-black italic">
-                      {selectedMeal.calories}{' '}
-                      <span className="text-sm font-bold text-slate-400 not-italic tracking-normal">
-                        kcal
-                      </span>
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                      Macros
-                    </h4>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 text-[10px] text-blue-500 hover:text-blue-600 hover:bg-blue-50 font-bold uppercase tracking-wider px-2 gap-1 rounded-lg"
-                      onClick={() => setIsEditingMacros(!isEditingMacros)}
-                    >
-                      {isEditingMacros ? (
-                        'Annuler'
-                      ) : (
-                        <>
-                          <Pencil className="w-3 h-3" /> Modifier
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100/50 flex flex-col items-center">
-                      {isEditingMacros ? (
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          value={editMacroProt}
-                          onChange={(e) =>
-                            setEditMacroProt(e.target.value === '' ? '' : Number(e.target.value))
-                          }
-                          className="h-8 w-full text-center font-black text-blue-600 p-1 mb-1 border-blue-200"
-                        />
-                      ) : (
-                        <span className="text-blue-600 font-black text-xl italic block text-center">
-                          {selectedMeal.macros.protein}g
-                        </span>
-                      )}
-                      <span className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">
-                        Protéines
-                      </span>
-                    </div>
-                    <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100/50 flex flex-col items-center">
-                      {isEditingMacros ? (
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          value={editMacroCarbs}
-                          onChange={(e) =>
-                            setEditMacroCarbs(e.target.value === '' ? '' : Number(e.target.value))
-                          }
-                          className="h-8 w-full text-center font-black text-emerald-600 p-1 mb-1 border-emerald-200"
-                        />
-                      ) : (
-                        <span className="text-emerald-600 font-black text-xl italic block text-center">
-                          {selectedMeal.macros.carbs}g
-                        </span>
-                      )}
-                      <span className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">
-                        Glucides
-                      </span>
-                    </div>
-                    <div className="bg-orange-50 p-3 rounded-2xl border border-orange-100/50 flex flex-col items-center">
-                      {isEditingMacros ? (
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          value={editMacroFat}
-                          onChange={(e) =>
-                            setEditMacroFat(e.target.value === '' ? '' : Number(e.target.value))
-                          }
-                          className="h-8 w-full text-center font-black text-orange-500 p-1 mb-1 border-orange-200"
-                        />
-                      ) : (
-                        <span className="text-orange-500 font-black text-xl italic block text-center">
-                          {selectedMeal.macros.fat}g
-                        </span>
-                      )}
-                      <span className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">
-                        Lipides
-                      </span>
-                    </div>
-                  </div>
-                  {isEditingMacros && (
-                    <Button
-                      onClick={handleSaveMacros}
-                      className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 font-black text-xs uppercase italic tracking-wider gap-2"
-                    >
-                      <Save className="w-4 h-4" /> Enregistrer les macros
-                    </Button>
-                  )}
-                </div>
-
-                {selectedMeal.micros && selectedMeal.micros.length > 0 && (
-                  <>
-                    <Separator className="bg-slate-100" />
-                    <div>
-                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">
-                        Micronutriments
-                      </h4>
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                        {selectedMeal.micros.map((micro, i) => (
-                          <div
-                            key={i}
-                            className="flex justify-between items-center text-xs border-b border-slate-50 pb-1.5"
-                          >
-                            <span className="text-slate-500 font-bold uppercase tracking-wider">
-                              {micro.name}
-                            </span>
-                            <span className="font-black text-slate-800">{micro.amount}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG AJOUT MANUEL */}
-      <Dialog open={isManualModalOpen} onOpenChange={setIsManualModalOpen}>
-        <DialogContent className="max-w-md rounded-[2rem] p-6 bg-white overflow-y-auto max-h-[90vh]">
-          <DialogHeader className="mb-4 text-left">
-            <DialogTitle className="text-xl font-black italic uppercase leading-tight text-slate-900 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-blue-600 stroke-[3px]" /> Saisie Manuelle
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                Nom du plat
-              </Label>
-              <Input
-                value={manualName}
-                onChange={(e) => setManualName(e.target.value)}
-                placeholder="Ex: Shaker Protéiné"
-                className="h-14 rounded-2xl text-lg font-bold bg-slate-50 border-slate-200"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest text-orange-500">
-                Calories (kcal)
-              </Label>
-              <Input
-                type="number"
-                value={manualCalories}
-                onChange={(e) => setManualCalories(e.target.value ? Number(e.target.value) : '')}
-                placeholder="0"
-                className="h-14 rounded-2xl text-xl font-black italic bg-slate-50 border-slate-200"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 pt-2">
-              <div className="space-y-2">
-                <Label className="text-[9px] font-black uppercase text-slate-400 tracking-widest text-blue-600">
-                  Protéines (g)
-                </Label>
-                <Input
-                  type="number"
-                  value={manualProtein}
-                  onChange={(e) => setManualProtein(e.target.value ? Number(e.target.value) : '')}
-                  placeholder="0"
-                  className="h-12 rounded-xl text-lg font-black bg-slate-50 border-slate-200 text-center"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[9px] font-black uppercase text-slate-400 tracking-widest text-emerald-600">
-                  Glucides (g)
-                </Label>
-                <Input
-                  type="number"
-                  value={manualCarbs}
-                  onChange={(e) => setManualCarbs(e.target.value ? Number(e.target.value) : '')}
-                  placeholder="0"
-                  className="h-12 rounded-xl text-lg font-black bg-slate-50 border-slate-200 text-center"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[9px] font-black uppercase text-slate-400 tracking-widest text-orange-500">
-                  Lipides (g)
-                </Label>
-                <Input
-                  type="number"
-                  value={manualFat}
-                  onChange={(e) => setManualFat(e.target.value ? Number(e.target.value) : '')}
-                  placeholder="0"
-                  className="h-12 rounded-xl text-lg font-black bg-slate-50 border-slate-200 text-center"
-                />
-              </div>
-            </div>
-
-            <Button
-              onClick={handleManualSave}
-              disabled={isSaving}
-              className="w-full h-16 mt-6 text-sm font-black italic uppercase rounded-2xl shadow-xl shadow-blue-500/20 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all"
-            >
-              {isSaving ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <Check className="w-5 h-5 mr-2 stroke-[3px]" />
-                  AJOUTER AU JOURNAL
-                </>
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        <SettingsSheet
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          bodyWeight={bodyWeight}
+          nutritionProfile={nutritionProfile}
+          onSave={handleSaveSettings}
+          isSaving={isSaving}
+        />
+        <ManualSheet
+          open={manualOpen}
+          onClose={() => setManualOpen(false)}
+          onSave={handleManualSave}
+          isSaving={isSaving}
+        />
+      </div>
     </div>
   );
 }
