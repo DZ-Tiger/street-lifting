@@ -2,7 +2,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useStore, calculate1RM, ExerciseType } from '@/store/useStore';
+import { useStore } from '@/store/useStore';
+import { calculate1RM, ExerciseType } from '@/lib/exercise';
+import { Gender, GoalType, ActivityLevel } from '@/lib/nutrition';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -63,18 +65,29 @@ const FemaleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-const GENDERS = [
-  { id: 'Homme' as const, label: 'ATHLÈTE M', color: 'blue', icon: MaleIcon },
-  { id: 'Femme' as const, label: 'ATHLÈTE F', color: 'indigo', icon: FemaleIcon },
+const GENDERS: { id: Gender; label: string; icon: typeof MaleIcon }[] = [
+  { id: 'male', label: 'ATHLETE M', icon: MaleIcon },
+  { id: 'female', label: 'ATHLETE F', icon: FemaleIcon },
 ];
 
-const PROGRAMS = [
-  { id: 'seche_extreme', label: 'SÈCHE', description: 'Perte de gras' },
-  { id: 'prise_de_masse', label: 'MASSE', description: 'Gain musculaire' },
-  { id: 'maintenance', label: 'MAINTIEN', description: 'Stabilité' },
+const PROGRAMS: { id: GoalType; label: string; description: string }[] = [
+  { id: 'cut', label: 'CUT', description: 'Fat loss' },
+  { id: 'bulk', label: 'BULK', description: 'Muscle gain' },
+  { id: 'maintain', label: 'MAINTAIN', description: 'Stability' },
 ];
 
-const DAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const ACTIVITY_LEVELS: { value: ActivityLevel; label: string; sub: string }[] = [
+  { value: 1.2, label: 'SEDENTARY', sub: '0 sessions' },
+  { value: 1.55, label: 'MODERATE', sub: '1–3 sessions' },
+  { value: 1.75, label: 'VERY ACTIVE', sub: '4+ sessions' },
+];
+
+const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+const LOADING_LABELS = ['ANALYZING PROFILE', 'CALCULATING LOADS', 'GENERATING CYCLE', 'FINALIZING'];
+
+const PRESS_INITIAL_DELAY_MS = 500;
+const PRESS_REPEAT_INTERVAL_MS = 80;
 
 export function OnboardingWizard() {
   const router = useRouter();
@@ -84,21 +97,21 @@ export function OnboardingWizard() {
   const [bodyWeight, setBodyWeight] = useState<number>(profile?.body_weight || 75);
   const [birthDate, setBirthDate] = useState<string>('2000-01-01');
   const [height, setHeight] = useState<number>(175);
-  const [goalProgram, setGoalProgram] = useState<string>('maintenance');
-  const [gender, setGender] = useState<'Homme' | 'Femme' | null>(null);
+  const [goalProgram, setGoalProgram] = useState<GoalType>('maintain');
+  const [activityLevel, setActivityLevel] = useState<ActivityLevel>(1.55);
+  const [gender, setGender] = useState<Gender | null>(null);
   const [trainingDays, setTrainingDays] = useState<number[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [success, setSuccess] = useState(false);
 
   const [exercises, setExercises] = useState<ExercisesState>({
-    Tractions: { enabled: true, mode: 'estimate', max: 0, addedWeight: 0, reps: 0 },
+    'Pull-up': { enabled: true, mode: 'estimate', max: 0, addedWeight: 0, reps: 0 },
     Dips: { enabled: true, mode: 'estimate', max: 0, addedWeight: 0, reps: 0 },
     'Muscle-up': { enabled: true, mode: 'estimate', max: 0, addedWeight: 0, reps: 0 },
     Squat: { enabled: true, mode: 'estimate', max: 0, addedWeight: 0, reps: 0 },
   });
 
-  // Press and hold logic
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -111,13 +124,11 @@ export function OnboardingWizard() {
     stopAdjusting();
     adjustFn();
     timeoutRef.current = setTimeout(() => {
-      intervalRef.current = setInterval(adjustFn, 80);
-    }, 500);
+      intervalRef.current = setInterval(adjustFn, PRESS_REPEAT_INTERVAL_MS);
+    }, PRESS_INITIAL_DELAY_MS);
   };
 
-  useEffect(() => {
-    return () => stopAdjusting();
-  }, []);
+  useEffect(() => () => stopAdjusting(), []);
 
   const nextStep = () => setStep((s) => Math.min(s + 1, 3));
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
@@ -166,19 +177,12 @@ export function OnboardingWizard() {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const loadingLabels = [
-      'ANALYSE DU PROFIL',
-      'CALCUL DES CHARGES',
-      'GÉNÉRATION DU CYCLE',
-      'FINALISATION',
-    ];
-
-    for (let i = 0; i < loadingLabels.length; i++) {
+    for (let i = 0; i < LOADING_LABELS.length; i++) {
       setLoadingStep(i);
       await new Promise((resolve) => setTimeout(resolve, 800));
     }
 
-    const getFinal1RM = (exo: ExerciseType) => {
+    const getFinal1RM = (exo: ExerciseType): number => {
       const config = exercises[exo];
       if (!config.enabled) return 0;
       if (config.mode === 'known') return config.max;
@@ -192,14 +196,15 @@ export function OnboardingWizard() {
 
       await completeOnboarding({
         body_weight: bodyWeight,
-        current_1rm_pullup: getFinal1RM('Tractions'),
+        current_1rm_pullup: getFinal1RM('Pull-up'),
         current_1rm_dips: getFinal1RM('Dips'),
         current_1rm_muscleup: getFinal1RM('Muscle-up'),
         current_1rm_squat: getFinal1RM('Squat'),
         birth_date: birthDate,
         height,
         goal_program: goalProgram,
-        gender: gender || 'Homme',
+        gender: gender ?? 'male',
+        activity_level: activityLevel,
       });
       setSuccess(true);
       setTimeout(() => {
@@ -208,14 +213,14 @@ export function OnboardingWizard() {
       }, 1500);
     } catch (err) {
       console.error(err);
-      toast.error('Erreur lors de la configuration', {
-        description: 'Vérifiez votre connexion ou que les colonnes existent dans Supabase.',
+      toast.error('Configuration error', {
+        description: 'Check your connection or that the Supabase columns exist.',
       });
       setIsSubmitting(false);
     }
   };
 
-  const get1RMPreview = (exo: ExerciseType) => {
+  const get1RMPreview = (exo: ExerciseType): number => {
     const config = exercises[exo];
     if (config.mode === 'known') return config.max;
     if (config.addedWeight > 0 && config.reps > 0) {
@@ -226,13 +231,13 @@ export function OnboardingWizard() {
 
   const getStrengthLevel = (exo: ExerciseType) => {
     const rm = get1RMPreview(exo);
-    if (rm === 0) return { label: 'À SAISIR', color: 'text-slate-300', pct: 0 };
+    if (rm === 0) return { label: 'TO SET', color: 'text-slate-300', pct: 0 };
     const ratio = rm / bodyWeight;
     const isUpper = exo !== 'Squat';
     const thresholds = isUpper ? [1.1, 1.4] : [1.3, 1.7];
 
     if (ratio < thresholds[0]) return { label: 'NOVICE', color: 'text-slate-400', pct: 33 };
-    if (ratio < thresholds[1]) return { label: 'AVANCÉ', color: 'text-blue-600', pct: 66 };
+    if (ratio < thresholds[1]) return { label: 'ADVANCED', color: 'text-blue-600', pct: 66 };
     return { label: 'ELITE', color: 'text-slate-900', pct: 100 };
   };
 
@@ -248,10 +253,10 @@ export function OnboardingWizard() {
         </motion.div>
         <div className="text-center space-y-2">
           <h2 className="text-3xl font-black uppercase tracking-tight">
-            PROFIL <span className="text-blue-600">CONFIGURÉ</span>
+            PROFILE <span className="text-blue-600">CONFIGURED</span>
           </h2>
           <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">
-            Initialisation de votre premier cycle...
+            Initializing your first cycle…
           </p>
         </div>
       </div>
@@ -277,11 +282,7 @@ export function OnboardingWizard() {
             exit={{ opacity: 0, y: -5 }}
             className="text-sm font-black uppercase tracking-[0.2em] text-slate-900"
           >
-            {
-              ['ANALYSE DU PROFIL', 'CALCUL DES CHARGES', 'GÉNÉRATION DU CYCLE', 'FINALISATION'][
-                loadingStep
-              ]
-            }
+            {LOADING_LABELS[loadingStep]}
           </motion.p>
         </AnimatePresence>
       </div>
@@ -290,12 +291,11 @@ export function OnboardingWizard() {
 
   return (
     <div className="w-full max-w-lg mx-auto min-h-[85vh] flex flex-col pt-4 px-4 pb-12">
-      {/* Brand Header */}
       <div className="mb-8 text-center">
         <div className="flex items-center justify-center gap-2 mb-6">
           <TrendingUp className="w-6 h-6 text-blue-600" />
           <span className="text-xl font-black uppercase tracking-tighter">
-            STREET<span className="text-blue-600">FLOW</span>
+            <span className="text-blue-600">9.81</span>
           </span>
         </div>
 
@@ -324,11 +324,11 @@ export function OnboardingWizard() {
             >
               <div>
                 <h2 className="text-2xl font-black uppercase leading-tight tracking-tight">
-                  VOTRE <br />
-                  <span className="text-blue-600">PROFIL.</span>
+                  YOUR <br />
+                  <span className="text-blue-600">PROFILE.</span>
                 </h2>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">
-                  DÉFINITION DES PARAMÈTRES DE BASE
+                  SETTING THE BASELINE
                 </p>
               </div>
 
@@ -336,9 +336,10 @@ export function OnboardingWizard() {
                 {GENDERS.map((g) => (
                   <button
                     key={g.id}
+                    type="button"
                     onClick={() => setGender(g.id)}
                     className={cn(
-                      'relative p-6 rounded-[2rem] border-2 transition-all duration-500 flex flex-col items-center gap-4 group',
+                      'relative p-6 rounded-[2rem] border-2 transition-all duration-500 flex flex-col items-center gap-4 group min-h-[44px]',
                       gender === g.id
                         ? 'border-blue-600 bg-blue-50/20'
                         : 'border-slate-50 bg-white hover:border-slate-200'
@@ -376,7 +377,7 @@ export function OnboardingWizard() {
                 <div className="bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100">
                   <div className="flex justify-between items-center mb-4">
                     <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                      POIDS DE CORPS
+                      BODY WEIGHT
                     </Label>
                     <div className="flex items-end gap-1">
                       <input
@@ -395,7 +396,8 @@ export function OnboardingWizard() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-10 w-10 rounded-xl bg-white border-slate-200 hover:border-blue-600 hover:text-blue-600 shadow-sm transition-all active:scale-90"
+                      aria-label="Decrease weight"
+                      className="h-11 w-11 rounded-xl bg-white border-slate-200 hover:border-blue-600 hover:text-blue-600 shadow-sm transition-all active:scale-90"
                       onMouseDown={() =>
                         startAdjusting(() => setBodyWeight((prev) => Math.max(20, prev - 0.5)))
                       }
@@ -423,7 +425,8 @@ export function OnboardingWizard() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-10 w-10 rounded-xl bg-white border-slate-200 hover:border-blue-600 hover:text-blue-600 shadow-sm transition-all active:scale-90"
+                      aria-label="Increase weight"
+                      className="h-11 w-11 rounded-xl bg-white border-slate-200 hover:border-blue-600 hover:text-blue-600 shadow-sm transition-all active:scale-90"
                       onMouseDown={() =>
                         startAdjusting(() => setBodyWeight((prev) => Math.min(350, prev + 0.5)))
                       }
@@ -445,7 +448,7 @@ export function OnboardingWizard() {
                     <div className="flex items-center gap-2">
                       <Calendar className="w-3 h-3 text-slate-400" />
                       <Label className="text-[8px] font-black uppercase text-slate-400 tracking-widest">
-                        NAISSANCE
+                        DATE OF BIRTH
                       </Label>
                     </div>
                     <div className="flex items-center justify-between">
@@ -462,7 +465,7 @@ export function OnboardingWizard() {
                     <div className="flex items-center gap-2">
                       <Ruler className="w-3 h-3 text-slate-400" />
                       <Label className="text-[8px] font-black uppercase text-slate-400 tracking-widest">
-                        TAILLE (CM)
+                        HEIGHT (CM)
                       </Label>
                     </div>
                     <div className="flex items-center justify-between">
@@ -474,6 +477,8 @@ export function OnboardingWizard() {
                       />
                       <div className="flex gap-1">
                         <button
+                          type="button"
+                          aria-label="Decrease height"
                           onMouseDown={() =>
                             startAdjusting(() => setHeight((h) => Math.max(100, h - 1)))
                           }
@@ -484,11 +489,13 @@ export function OnboardingWizard() {
                             startAdjusting(() => setHeight((h) => Math.max(100, h - 1)));
                           }}
                           onTouchEnd={stopAdjusting}
-                          className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center active:scale-90"
+                          className="h-11 w-11 rounded-lg bg-white border border-slate-200 flex items-center justify-center active:scale-90"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
                         <button
+                          type="button"
+                          aria-label="Increase height"
                           onMouseDown={() =>
                             startAdjusting(() => setHeight((h) => Math.min(250, h + 1)))
                           }
@@ -499,7 +506,7 @@ export function OnboardingWizard() {
                             startAdjusting(() => setHeight((h) => Math.min(250, h + 1)));
                           }}
                           onTouchEnd={stopAdjusting}
-                          className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center active:scale-90"
+                          className="h-11 w-11 rounded-lg bg-white border border-slate-200 flex items-center justify-center active:scale-90"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -515,7 +522,7 @@ export function OnboardingWizard() {
                   onClick={nextStep}
                   disabled={!gender}
                 >
-                  ÉTAPE SUIVANTE <ChevronRight className="ml-2 h-4 w-4" />
+                  NEXT STEP <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </motion.div>
@@ -531,11 +538,11 @@ export function OnboardingWizard() {
             >
               <div>
                 <h2 className="text-2xl font-black uppercase leading-tight tracking-tight">
-                  NIVEAU DE <br />
-                  <span className="text-blue-600">PERFORMANCE.</span>
+                  PERFORMANCE <br />
+                  <span className="text-blue-600">LEVEL.</span>
                 </h2>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">
-                  ÉVALUATION DES MAXIMA ACTUELS
+                  CURRENT MAX ASSESSMENT
                 </p>
               </div>
 
@@ -587,35 +594,35 @@ export function OnboardingWizard() {
                           </div>
                         </div>
                         <button
+                          type="button"
                           onClick={() => updateExercise(exo, 'enabled', !isEnabled)}
                           className={cn(
-                            'text-[9px] font-black uppercase px-5 py-2.5 rounded-xl border-2 transition-all',
+                            'text-[9px] font-black uppercase px-5 py-2.5 rounded-xl border-2 transition-all min-h-[44px]',
                             isEnabled
                               ? 'border-blue-600 text-blue-600 bg-blue-50/30'
                               : 'border-slate-200 text-slate-400'
                           )}
                         >
-                          {isEnabled ? 'ACTIF' : 'IGNORER'}
+                          {isEnabled ? 'ACTIVE' : 'SKIP'}
                         </button>
                       </div>
 
                       {isEnabled && (
                         <div className="space-y-8">
                           <div className="flex gap-2 p-1.5 bg-slate-100 rounded-[1.25rem]">
-                            {['estimate', 'known'].map((m) => (
+                            {(['estimate', 'known'] as const).map((m) => (
                               <button
                                 key={m}
-                                onClick={() =>
-                                  updateExercise(exo, 'mode', m as 'estimate' | 'known')
-                                }
+                                type="button"
+                                onClick={() => updateExercise(exo, 'mode', m)}
                                 className={cn(
-                                  'flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all',
+                                  'flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all min-h-[44px]',
                                   exercises[exo].mode === m
                                     ? 'bg-white text-slate-900 shadow-sm'
                                     : 'text-slate-400 hover:text-slate-500'
                                 )}
                               >
-                                {m === 'estimate' ? 'Estimation' : 'Saisie Directe'}
+                                {m === 'estimate' ? 'Estimate' : 'Direct entry'}
                               </button>
                             ))}
                           </div>
@@ -626,7 +633,7 @@ export function OnboardingWizard() {
                                 <div className="bg-slate-50/50 p-6 rounded-[1.5rem] border border-slate-100 flex items-center justify-between">
                                   <div className="space-y-1">
                                     <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                      LEST (KG)
+                                      ADDED LOAD (KG)
                                     </Label>
                                     <input
                                       type="number"
@@ -641,6 +648,7 @@ export function OnboardingWizard() {
                                     <Button
                                       variant="outline"
                                       size="icon"
+                                      aria-label="Decrease load"
                                       className="h-12 w-12 rounded-xl bg-white shadow-sm border-slate-200 active:scale-90"
                                       onMouseDown={() =>
                                         startAdjusting(() =>
@@ -662,6 +670,7 @@ export function OnboardingWizard() {
                                     <Button
                                       variant="outline"
                                       size="icon"
+                                      aria-label="Increase load"
                                       className="h-12 w-12 rounded-xl bg-white shadow-sm border-slate-200 active:scale-90"
                                       onMouseDown={() =>
                                         startAdjusting(() =>
@@ -685,7 +694,7 @@ export function OnboardingWizard() {
                                 <div className="bg-slate-50/50 p-6 rounded-[1.5rem] border border-slate-100 flex items-center justify-between">
                                   <div className="space-y-1">
                                     <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                      RÉPÉTITIONS
+                                      REPS
                                     </Label>
                                     <input
                                       type="number"
@@ -700,6 +709,7 @@ export function OnboardingWizard() {
                                     <Button
                                       variant="outline"
                                       size="icon"
+                                      aria-label="Decrease reps"
                                       className="h-12 w-12 rounded-xl bg-white shadow-sm border-slate-200 active:scale-90"
                                       onMouseDown={() =>
                                         startAdjusting(() => adjustExerciseValue(exo, 'reps', -1))
@@ -717,6 +727,7 @@ export function OnboardingWizard() {
                                     <Button
                                       variant="outline"
                                       size="icon"
+                                      aria-label="Increase reps"
                                       className="h-12 w-12 rounded-xl bg-white shadow-sm border-slate-200 active:scale-90"
                                       onMouseDown={() =>
                                         startAdjusting(() => adjustExerciseValue(exo, 'reps', 1))
@@ -738,7 +749,7 @@ export function OnboardingWizard() {
                               <div className="bg-slate-50/50 p-6 rounded-[1.5rem] border border-slate-100 flex items-center justify-between">
                                 <div className="space-y-1">
                                   <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                    MAX TOTAL (KG)
+                                    TOTAL MAX (KG)
                                   </Label>
                                   <input
                                     type="number"
@@ -753,6 +764,7 @@ export function OnboardingWizard() {
                                   <Button
                                     variant="outline"
                                     size="icon"
+                                    aria-label="Decrease max"
                                     className="h-12 w-12 rounded-xl bg-white shadow-sm border-slate-200 active:scale-90"
                                     onMouseDown={() =>
                                       startAdjusting(() => adjustExerciseValue(exo, 'max', -1))
@@ -770,6 +782,7 @@ export function OnboardingWizard() {
                                   <Button
                                     variant="outline"
                                     size="icon"
+                                    aria-label="Increase max"
                                     className="h-12 w-12 rounded-xl bg-white shadow-sm border-slate-200 active:scale-90"
                                     onMouseDown={() =>
                                       startAdjusting(() => adjustExerciseValue(exo, 'max', 1))
@@ -798,6 +811,7 @@ export function OnboardingWizard() {
               <div className="flex gap-4 pt-4">
                 <Button
                   variant="outline"
+                  aria-label="Previous step"
                   className="h-12 w-12 rounded-2xl border-slate-200 shadow-sm transition-all active:scale-90"
                   onClick={prevStep}
                 >
@@ -807,7 +821,7 @@ export function OnboardingWizard() {
                   className="flex-1 h-12 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] uppercase tracking-wide shadow-xl shadow-slate-900/10 transition-all active:scale-[0.98]"
                   onClick={nextStep}
                 >
-                  CONFIRMER LES PERFORMANCES <ChevronRight className="ml-2 h-4 w-4" />
+                  CONFIRM PERFORMANCE <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </motion.div>
@@ -823,31 +837,33 @@ export function OnboardingWizard() {
             >
               <div>
                 <h2 className="text-2xl font-black uppercase leading-tight tracking-tight">
-                  PLANIFICATION <br />
-                  <span className="text-blue-600">HEBDOMADAIRE.</span>
+                  WEEKLY <br />
+                  <span className="text-blue-600">PLANNING.</span>
                 </h2>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">
-                  DISPONIBILITÉ ET OBJECTIF
+                  AVAILABILITY AND GOAL
                 </p>
               </div>
 
               <div className="bg-slate-900 rounded-[2rem] p-6 space-y-6 relative overflow-hidden shadow-2xl shadow-slate-900/20">
                 <div className="space-y-2 relative z-10">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
-                    <Calendar className="w-3 h-3" /> JOURS D&apos;ENTRAÎNEMENT
+                    <Calendar className="w-3 h-3" /> TRAINING DAYS
                   </h3>
                 </div>
 
                 <div className="flex justify-between gap-2 relative z-10">
-                  {DAYS.map((day, idx) => {
+                  {DAY_LETTERS.map((day, idx) => {
                     const dNum = idx + 1;
                     const active = trainingDays.includes(dNum);
                     return (
                       <button
                         key={idx}
+                        type="button"
+                        aria-label={`Day ${dNum}`}
                         onClick={() => toggleDay(dNum)}
                         className={cn(
-                          'w-9 h-9 rounded-lg flex items-center justify-center font-black text-[10px] transition-all duration-300',
+                          'w-11 h-11 rounded-lg flex items-center justify-center font-black text-[10px] transition-all duration-300',
                           active
                             ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/30 scale-110'
                             : 'bg-slate-800 text-slate-500 hover:bg-slate-700'
@@ -865,7 +881,7 @@ export function OnboardingWizard() {
                     <span
                       className={trainingDays.length === 4 ? 'text-emerald-400' : 'text-blue-400'}
                     >
-                      {trainingDays.length} / 4 JOURS
+                      {trainingDays.length} / 4 DAYS
                     </span>
                   </div>
                   <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
@@ -883,15 +899,49 @@ export function OnboardingWizard() {
 
               <div className="space-y-4">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                  <Activity className="w-3 h-3" /> OBJECTIF DU PROGRAMME
+                  <Activity className="w-3 h-3" /> ACTIVITY LEVEL
+                </h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {ACTIVITY_LEVELS.map((a) => (
+                    <button
+                      key={a.value}
+                      type="button"
+                      onClick={() => setActivityLevel(a.value)}
+                      className={cn(
+                        'min-h-[44px] p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1',
+                        activityLevel === a.value
+                          ? 'border-blue-600 bg-blue-50/30'
+                          : 'border-slate-100 bg-white opacity-60'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'text-[9px] font-black',
+                          activityLevel === a.value ? 'text-blue-600' : 'text-slate-400'
+                        )}
+                      >
+                        {a.label}
+                      </span>
+                      <span className="text-[7px] font-medium text-slate-400 uppercase text-center leading-tight">
+                        {a.sub}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                  <Activity className="w-3 h-3" /> PROGRAM GOAL
                 </h3>
                 <div className="grid grid-cols-3 gap-2">
                   {PROGRAMS.map((p) => (
                     <button
                       key={p.id}
+                      type="button"
                       onClick={() => setGoalProgram(p.id)}
                       className={cn(
-                        'p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1',
+                        'min-h-[44px] p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1',
                         goalProgram === p.id
                           ? 'border-blue-600 bg-blue-50/30'
                           : 'border-slate-100 bg-white opacity-60'
@@ -916,6 +966,7 @@ export function OnboardingWizard() {
               <div className="mt-auto pt-4 flex gap-4">
                 <Button
                   variant="outline"
+                  aria-label="Previous step"
                   className="h-12 w-12 rounded-2xl border-slate-200 shadow-sm transition-all active:scale-90"
                   onClick={prevStep}
                 >
@@ -926,7 +977,7 @@ export function OnboardingWizard() {
                   onClick={handleComplete}
                   disabled={trainingDays.length !== 4 || isSubmitting}
                 >
-                  CRÉER MON PROGRAMME <TrendingUp className="ml-2 h-4 w-4" />
+                  CREATE MY PROGRAM <TrendingUp className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </motion.div>
@@ -935,7 +986,7 @@ export function OnboardingWizard() {
       </div>
 
       <p className="text-center mt-10 text-[8px] font-black uppercase tracking-[0.4em] text-slate-300">
-        STREET FLOW • PERFORMANCE ENGINE v1.2.5
+        9.81 • PERFORMANCE ENGINE v1.2.5
       </p>
     </div>
   );

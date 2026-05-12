@@ -1,5 +1,9 @@
 @AGENTS.md
-# CLAUDE.md - Street Flow Development Guide
+# CLAUDE.md — 9.81 Development Guide
+
+> Codename "9.81" — the app's brand. Named after Earth's gravity (9.81 m/s²) to evoke
+> the analytical, performance-driven feel of Street Lifting. UI copy, manifest, and
+> metadata must use "9.81" as the product name.
 
 ## 🎯 Vision & UX
 - **Concept :** Application de performance pour le Street Lifting (Tractions, Dips, Muscle-up, Squat).

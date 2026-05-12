@@ -35,7 +35,6 @@ const AN = ({
   </span>
 );
 
-/* CHALK wordmark */
 const Wordmark = () => (
   <div className="flex items-center gap-2.5">
     <div className="relative h-7 w-7">
@@ -47,19 +46,18 @@ const Wordmark = () => (
         className="text-[14px] font-medium tracking-tight leading-none"
         style={{ color: 'var(--fg)' }}
       >
-        CHALK
+        9.81
       </div>
       <AN
         className="text-[8px] uppercase tracking-[0.28em]"
         style={{ color: 'var(--muted)' } as React.CSSProperties}
       >
-        street · lift
+        street lift
       </AN>
     </div>
   </div>
 );
 
-/* Subtle grid + radial gradient backdrop */
 const AuthBackdrop = () => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none">
     <svg
@@ -84,7 +82,6 @@ const AuthBackdrop = () => (
   </div>
 );
 
-/* Bottom-rule text field */
 const Field = ({
   label,
   value,
@@ -122,8 +119,12 @@ const Field = ({
           borderBottomColor: 'var(--border)',
           fontFeatureSettings: '"tnum" 1',
         }}
-        onFocus={(e) => (e.currentTarget.style.borderBottomColor = 'var(--fg)')}
-        onBlur={(e) => (e.currentTarget.style.borderBottomColor = 'var(--border)')}
+        onFocus={(e) => {
+          e.currentTarget.style.borderBottomColor = 'var(--fg)';
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderBottomColor = 'var(--border)';
+        }}
       />
     </label>
   );
@@ -141,7 +142,7 @@ const CheckboxField = ({
   <button
     type="button"
     onClick={() => onChange(!checked)}
-    className="flex items-start gap-2.5 text-left"
+    className="flex items-start gap-2.5 text-left min-h-[44px]"
   >
     <span
       className="mt-[2px] h-4 w-4 rounded-[4px] border flex items-center justify-center shrink-0 transition"
@@ -204,7 +205,6 @@ const GoogleGlyph = () => (
   </svg>
 );
 
-/* Primary CTA button */
 const CTA = ({
   onClick,
   type = 'button',
@@ -250,42 +250,28 @@ const LoginScreen = ({
     >
       <AuthBackdrop />
 
-      {/* Top bar */}
       <div className="relative flex items-center justify-between px-5 pt-5 pb-4">
         <Wordmark />
         <button
+          type="button"
           onClick={onSwitch}
-          className="h-9 px-3 rounded-full border text-[10px] font-medium uppercase tracking-[0.18em] transition"
+          className="min-h-[44px] px-3 rounded-full border text-[10px] font-medium uppercase tracking-[0.18em] transition"
           style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
         >
-          Créer un compte
+          Create account
         </button>
       </div>
 
       <div className="relative flex-1 overflow-y-auto">
-        {/* Hero */}
         <div className="px-5 pt-6 pb-7">
-          <AL>Connexion</AL>
+          <AL>Sign in</AL>
           <div className="mt-2 text-[32px] font-medium leading-[1.04] tracking-tight">
-            Reprenez votre
+            Resume your
             <br />
-            <span style={{ color: 'var(--muted)' }}>cycle de force.</span>
-          </div>
-          <div className="mt-3 flex items-center gap-4">
-            <AN className="text-[10px]" style={{ color: 'var(--muted)' } as React.CSSProperties}>
-              Cycle 4 · sem. 4 / 9
-            </AN>
-            <span
-              className="h-1 w-1 rounded-full"
-              style={{ background: 'var(--muted)', opacity: 0.6 }}
-            />
-            <AN className="text-[10px]" style={{ color: 'var(--muted)' } as React.CSSProperties}>
-              312 séances
-            </AN>
+            <span style={{ color: 'var(--muted)' }}>strength cycle.</span>
           </div>
         </div>
 
-        {/* Form */}
         <form
           className="px-5 space-y-5"
           onSubmit={(e) => {
@@ -299,10 +285,10 @@ const LoginScreen = ({
             autoComplete="email"
             value={email}
             onChange={setEmail}
-            placeholder="vous@email.com"
+            placeholder="you@email.com"
           />
           <Field
-            label="Mot de passe"
+            label="Password"
             type="password"
             autoComplete="current-password"
             value={password}
@@ -311,67 +297,35 @@ const LoginScreen = ({
             right={
               <button
                 type="button"
-                className="text-[9px] uppercase tracking-[0.18em] transition"
+                className="text-[9px] uppercase tracking-[0.18em] transition min-h-[44px]"
                 style={{ color: 'var(--muted)' }}
               >
-                Oublié
+                Forgot
               </button>
             }
           />
 
           <div className="pt-1">
             <CheckboxField checked={remember} onChange={setRemember}>
-              Rester connecté sur cet appareil
+              Stay signed in on this device
             </CheckboxField>
           </div>
 
           <CTA type="submit" loading={loading}>
-            Se connecter
+            Sign in
           </CTA>
         </form>
 
-        {/* Providers */}
         <div className="px-5 mt-7">
-          <Divider>ou continuer avec</Divider>
+          <Divider>or continue with</Divider>
           <div className="grid grid-cols-2 gap-2 mt-3">
             <ProviderButton icon={<AppleGlyph />} label="Apple" />
             <ProviderButton icon={<GoogleGlyph />} label="Google" />
           </div>
         </div>
 
-        {/* Stats foot */}
-        <div className="px-5 mt-8 mb-6">
-          <div
-            className="border rounded-2xl grid grid-cols-3 divide-x overflow-hidden"
-            style={{
-              borderColor: 'var(--border)',
-              background: 'var(--surface)',
-            }}
-          >
-            {[
-              { value: '14 820', label: 'athlètes' },
-              { value: '1.2 M', label: 'séries' },
-              { value: '9 sem.', label: 'cycle' },
-            ].map((s, i) => (
-              <div
-                key={s.label}
-                className="px-3 py-3 text-center"
-                style={i > 0 ? { borderLeft: '1px solid var(--border)' } : undefined}
-              >
-                <AN
-                  className="block text-[16px] font-medium leading-none"
-                  style={{ color: 'var(--fg)' } as React.CSSProperties}
-                >
-                  {s.value}
-                </AN>
-                <AL className="text-[8px] tracking-[0.22em] mt-1.5 block">{s.label}</AL>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="px-5 pb-10 text-center">
-          <AL className="text-[9px] tracking-[0.22em]">v 2.4 · conditions · confidentialité</AL>
+        <div className="px-5 pb-10 pt-10 text-center">
+          <AL className="text-[9px] tracking-[0.22em]">v 2.4 · terms · privacy</AL>
         </div>
       </div>
     </div>
@@ -425,7 +379,7 @@ const Chip = ({
   <button
     type="button"
     onClick={onClick}
-    className="h-10 px-3.5 rounded-full border text-[11px] font-medium transition"
+    className="min-h-[44px] px-3.5 rounded-full border text-[11px] font-medium transition"
     style={{
       background: active ? 'var(--fg)' : 'transparent',
       borderColor: active ? 'var(--fg)' : 'var(--border)',
@@ -435,6 +389,20 @@ const Chip = ({
     {children}
   </button>
 );
+
+const LEVEL_OPTIONS = [
+  { k: 'beginner', l: 'Beginner' },
+  { k: 'intermediate', l: 'Intermediate' },
+  { k: 'advanced', l: 'Advanced' },
+  { k: 'elite', l: 'Elite' },
+];
+
+const GOAL_OPTIONS = [
+  { k: 'strength', l: 'Pure strength', d: '9-week cycle · 5×5 · heavy loads' },
+  { k: 'skill', l: 'Calisthenics skill', d: 'Muscle-up · front lever · planche' },
+  { k: 'hybrid', l: 'Hybrid', d: 'Strength + skill, alternating weeks' },
+  { k: 'endurance', l: 'Endurance', d: 'High volume · moderate loads' },
+];
 
 const SignupScreen = ({
   onSignup,
@@ -451,8 +419,8 @@ const SignupScreen = ({
   const [password, setPassword] = useState('');
   const [weight, setWeight] = useState('80');
   const [height, setHeight] = useState('178');
-  const [level, setLevel] = useState('intermediaire');
-  const [goal, setGoal] = useState('force');
+  const [level, setLevel] = useState('intermediate');
+  const [goal, setGoal] = useState('strength');
   const [terms, setTerms] = useState(false);
 
   const next = () => setStep((s) => Math.min(3, s + 1));
@@ -468,7 +436,7 @@ const SignupScreen = ({
 
   const bw = parseFloat(weight) || 80;
   const estimated1RMs = {
-    Traction: `+${Math.round(bw * 0.2)} kg`,
+    'Pull-up': `+${Math.round(bw * 0.2)} kg`,
     Dips: `+${Math.round(bw * 0.3)} kg`,
     Squat: `${Math.round(bw * 1.1)} kg`,
   };
@@ -480,62 +448,62 @@ const SignupScreen = ({
     >
       <AuthBackdrop />
 
-      {/* Top bar */}
       <div className="relative flex items-center justify-between px-5 pt-5 pb-4">
         <button
+          type="button"
+          aria-label="Back"
           onClick={step === 1 ? onSwitch : back}
-          className="h-10 w-10 -ml-2 flex items-center justify-center rounded-full transition"
+          className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full transition"
           style={{ color: 'var(--fg)' }}
         >
           <ChevronLeft size={18} strokeWidth={1.75} />
         </button>
         <StepIndicator step={step} />
-        <div className="h-10 w-10" />
+        <div className="h-11 w-11" />
       </div>
 
       <div className="relative flex-1 overflow-y-auto">
         <div className="px-5 pt-4 pb-5">
           <AL>
-            Étape {step} / 3 · {step === 1 ? 'compte' : step === 2 ? 'profil' : 'objectif'}
+            Step {step} / 3 · {step === 1 ? 'account' : step === 2 ? 'profile' : 'goal'}
           </AL>
           <div className="mt-2 text-[28px] font-medium leading-[1.05] tracking-tight">
             {step === 1 && (
               <>
-                Créez votre <span style={{ color: 'var(--muted)' }}>compte.</span>
+                Create your <span style={{ color: 'var(--muted)' }}>account.</span>
               </>
             )}
             {step === 2 && (
               <>
-                Calibrons les <span style={{ color: 'var(--muted)' }}>baselines.</span>
+                Calibrate your <span style={{ color: 'var(--muted)' }}>baselines.</span>
               </>
             )}
             {step === 3 && (
               <>
-                Définissez votre <span style={{ color: 'var(--muted)' }}>objectif.</span>
+                Define your <span style={{ color: 'var(--muted)' }}>goal.</span>
               </>
             )}
           </div>
         </div>
 
-        {/* Step 1 — Compte */}
         {step === 1 && (
           <div className="px-5 space-y-5">
-            <Field label="Nom complet" value={name} onChange={setName} autoComplete="name" />
+            <Field label="Full name" value={name} onChange={setName} autoComplete="name" />
             <Field
               label="Email"
               type="email"
               autoComplete="email"
               value={email}
               onChange={setEmail}
-              placeholder="vous@email.com"
+              placeholder="you@email.com"
             />
             <Field
-              label="Mot de passe"
+              label="Password"
               type="password"
               autoComplete="new-password"
               value={password}
               onChange={setPassword}
-              placeholder="8 caractères minimum"
+              placeholder="8 characters min"
               right={
                 <div className="flex items-center gap-1">
                   {[0, 1, 2, 3].map((i) => (
@@ -552,38 +520,32 @@ const SignupScreen = ({
             />
             <div className="pt-1">
               <CheckboxField checked={terms} onChange={setTerms}>
-                J&apos;accepte les conditions d&apos;utilisation et la politique de confidentialité.
+                I agree to the terms of use and the privacy policy.
               </CheckboxField>
             </div>
           </div>
         )}
 
-        {/* Step 2 — Profil */}
         {step === 2 && (
           <div className="px-5 space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <Field
-                label="Poids"
+                label="Weight"
                 value={weight}
                 onChange={setWeight}
                 right={<AL className="text-[9px]">kg</AL>}
               />
               <Field
-                label="Taille"
+                label="Height"
                 value={height}
                 onChange={setHeight}
                 right={<AL className="text-[9px]">cm</AL>}
               />
             </div>
             <div>
-              <AL className="block mb-2">Niveau actuel</AL>
+              <AL className="block mb-2">Current level</AL>
               <div className="flex flex-wrap gap-2">
-                {[
-                  { k: 'debutant', l: 'Débutant' },
-                  { k: 'intermediaire', l: 'Intermédiaire' },
-                  { k: 'avance', l: 'Avancé' },
-                  { k: 'elite', l: 'Élite' },
-                ].map((o) => (
+                {LEVEL_OPTIONS.map((o) => (
                   <Chip key={o.k} active={level === o.k} onClick={() => setLevel(o.k)}>
                     {o.l}
                   </Chip>
@@ -595,9 +557,9 @@ const SignupScreen = ({
               style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
             >
               <div className="flex items-center justify-between mb-2">
-                <AL>1RM estimés · auto</AL>
+                <AL>Estimated 1RM · auto</AL>
                 <AN className="text-[9px]" style={{ color: 'var(--muted)' } as React.CSSProperties}>
-                  modifiable plus tard
+                  editable later
                 </AN>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -613,7 +575,7 @@ const SignupScreen = ({
                     >
                       {val}
                     </AN>
-                    <AL className="text-[8px] tracking-[0.22em] mt-1 block">{label} · kg</AL>
+                    <AL className="text-[8px] tracking-[0.22em] mt-1 block">{label}</AL>
                   </div>
                 ))}
               </div>
@@ -621,26 +583,16 @@ const SignupScreen = ({
           </div>
         )}
 
-        {/* Step 3 — Objectif */}
         {step === 3 && (
           <div className="px-5 space-y-3">
-            {[
-              { k: 'force', l: 'Force pure', d: 'Cycle 9 sem. · 5×5 · charges lourdes' },
-              {
-                k: 'skill',
-                l: 'Skill calisthénie',
-                d: 'Muscle-up · front lever · planche',
-              },
-              { k: 'hybride', l: 'Hybride', d: 'Force + skill, semaines alternées' },
-              { k: 'endurance', l: 'Endurance', d: 'Volume haut · charges modérées' },
-            ].map((o) => {
+            {GOAL_OPTIONS.map((o) => {
               const active = goal === o.k;
               return (
                 <button
                   key={o.k}
                   type="button"
                   onClick={() => setGoal(o.k)}
-                  className="w-full text-left p-4 rounded-2xl border transition flex items-start gap-3"
+                  className="w-full text-left p-4 rounded-2xl border transition flex items-start gap-3 min-h-[44px]"
                   style={{
                     borderColor: active ? 'var(--fg)' : 'var(--border)',
                     background: active ? 'var(--surface-2)' : 'var(--surface)',
@@ -669,18 +621,18 @@ const SignupScreen = ({
           </div>
         )}
 
-        {/* CTA */}
         <div className="px-5 mt-7 pb-6">
           <CTA onClick={handleSubmit} loading={loading}>
-            {step === 3 ? 'Lancer mon cycle' : 'Continuer'}
+            {step === 3 ? 'Start my cycle' : 'Continue'}
           </CTA>
           {step === 1 && (
             <button
+              type="button"
               onClick={onSwitch}
-              className="w-full mt-3 h-10 text-[11px] uppercase tracking-[0.18em] transition"
+              className="w-full mt-3 min-h-[44px] text-[11px] uppercase tracking-[0.18em] transition"
               style={{ color: 'var(--muted)' }}
             >
-              Déjà membre · se connecter
+              Already a member · sign in
             </button>
           )}
         </div>
@@ -710,7 +662,7 @@ export default function LoginPage() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success('Connecté !');
+      toast.success('Signed in');
       router.push('/');
     }
     setLoading(false);
@@ -722,7 +674,7 @@ export default function LoginPage() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success('Vérifiez vos emails pour confirmer votre compte !');
+      toast.success('Check your inbox to confirm your account.');
       setMode('login');
     }
     setLoading(false);

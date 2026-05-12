@@ -5,7 +5,6 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// @ts-expect-error - Ignore les conflits de types entre Vite 5 et Vite 6 pour les plugins Vitest
 export default defineConfig({
   plugins: [react()],
   test: {

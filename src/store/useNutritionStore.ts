@@ -1,8 +1,29 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { caloriesFromMacros } from '@/lib/nutrition';
 
-export type GoalType = 'cut' | 'maintain' | 'bulk';
-export type GenderType = 'M' | 'F';
+export type { Gender, GoalType, NutritionTargets, ActivityLevel } from '@/lib/nutrition';
+export {
+  calculateTargets,
+  calculateBMR,
+  calculateTDEE,
+  GOAL_LABELS,
+  ACTIVITY_OPTIONS,
+  normalizeGender,
+  normalizeGoal,
+  caloriesFromMacros,
+} from '@/lib/nutrition';
+
+export interface MacroSet {
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface Micronutrient {
+  name: string;
+  amount: string;
+}
 
 export interface HistoryItem {
   id: string;
@@ -10,19 +31,11 @@ export interface HistoryItem {
   timestamp: number;
   mealName: string;
   calories: number;
-  macros: {
-    protein: number;
-    carbs: number;
-    fat: number;
-  };
-  micros: { name: string; amount: string }[];
+  macros: MacroSet;
+  micros: Micronutrient[];
   portion: number;
   baseCalories?: number;
-  baseMacros?: {
-    protein: number;
-    carbs: number;
-    fat: number;
-  };
+  baseMacros?: MacroSet;
   estimatedWeightGrams?: number;
 }
 
@@ -31,10 +44,7 @@ interface NutritionState {
   addMeal: (meal: HistoryItem) => void;
   removeMeal: (id: string) => void;
   updateMealPortion: (id: string, newPortion: number) => void;
-  updateMealMacros: (
-    id: string,
-    newMacros: { protein: number; carbs: number; fat: number }
-  ) => void;
+  updateMealMacros: (id: string, newMacros: MacroSet) => void;
 }
 
 export const useNutritionStore = create<NutritionState>()(
@@ -57,24 +67,24 @@ export const useNutritionStore = create<NutritionState>()(
           meals: state.meals.map((meal) => {
             if (meal.id !== id) return meal;
 
-            // On a besoin des bases pour recalculer
-            const baseCals = meal.baseCalories ?? meal.calories / meal.portion;
-            const baseProt = meal.baseMacros?.protein ?? meal.macros.protein / meal.portion;
-            const baseCarbs = meal.baseMacros?.carbs ?? meal.macros.carbs / meal.portion;
-            const baseFat = meal.baseMacros?.fat ?? meal.macros.fat / meal.portion;
+            const safePortion = meal.portion === 0 ? 1 : meal.portion;
+            const baseCalories = meal.baseCalories ?? meal.calories / safePortion;
+            const baseProtein = meal.baseMacros?.protein ?? meal.macros.protein / safePortion;
+            const baseCarbs = meal.baseMacros?.carbs ?? meal.macros.carbs / safePortion;
+            const baseFat = meal.baseMacros?.fat ?? meal.macros.fat / safePortion;
 
             return {
               ...meal,
               portion: newPortion,
-              calories: Math.round(baseCals * newPortion),
+              calories: Math.round(baseCalories * newPortion),
               macros: {
-                protein: Math.round(baseProt * newPortion),
+                protein: Math.round(baseProtein * newPortion),
                 carbs: Math.round(baseCarbs * newPortion),
                 fat: Math.round(baseFat * newPortion),
               },
-              baseCalories: baseCals,
+              baseCalories,
               baseMacros: {
-                protein: baseProt,
+                protein: baseProtein,
                 carbs: baseCarbs,
                 fat: baseFat,
               },
@@ -87,9 +97,10 @@ export const useNutritionStore = create<NutritionState>()(
           meals: state.meals.map((meal) => {
             if (meal.id !== id) return meal;
 
-            // Calcul des nouvelles calories basées sur les macros
-            const newBaseCalories = Math.round(
-              newMacros.protein * 4 + newMacros.carbs * 4 + newMacros.fat * 9
+            const newBaseCalories = caloriesFromMacros(
+              newMacros.protein,
+              newMacros.carbs,
+              newMacros.fat
             );
 
             return {
@@ -111,39 +122,3 @@ export const useNutritionStore = create<NutritionState>()(
     }
   )
 );
-
-/**
- * Logique Métier Professionnelle : Équation de Mifflin-St Jeor
- */
-export const calculateTargets = (
-  height: number,
-  age: number,
-  gender: 'Homme' | 'Femme',
-  activityLevel: number,
-  goal: string,
-  bodyWeight: number
-) => {
-  // 1. Calcul du BMR (Mifflin-St Jeor) basé sur le poids réel du profil global
-  const s = gender === 'Homme' ? 5 : -161;
-  const bmr = 10 * bodyWeight + 6.25 * height - 5 * age + s;
-
-  // 2. Calcul du TDEE
-  const tdee = Math.round(bmr * activityLevel);
-
-  // 3. Ajustement selon l'objectif calorique
-  let targetCalories = tdee;
-  const goalLower = goal.toLowerCase();
-  if (goalLower.includes('sèche') || goalLower.includes('cut') || goalLower.includes('seche'))
-    targetCalories -= 500;
-  if (goalLower.includes('masse') || goalLower.includes('bulk')) targetCalories += 300;
-
-  // 4. Répartition des Macros (Standard Musculation)
-  const targetProtein = Math.round(bodyWeight * 2.0);
-  const targetFat = Math.round(bodyWeight * 1.0);
-
-  // Glucides: Le reste des calories (1g Prot=4kcal, 1g Lip=9kcal, 1g Glu=4kcal)
-  const remainingCalories = targetCalories - (targetProtein * 4 + targetFat * 9);
-  const targetCarbs = Math.round(Math.max(0, remainingCalories / 4));
-
-  return { targetCalories, targetProtein, targetFat, targetCarbs };
-};
