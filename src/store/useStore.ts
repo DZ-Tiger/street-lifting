@@ -11,11 +11,24 @@ export interface UserProfile {
   current_1rm_dips: number;
   current_1rm_squat: number;
   onboarding_completed: boolean;
-  age?: number;
-  height?: number;
-  goal_program?: string;
-  gender?: 'Homme' | 'Femme';
+  birth_date: string;
+  height: number;
+  goal_program: string;
+  gender: 'Homme' | 'Femme';
+  activity_level?: number;
 }
+
+export const calculateAge = (birthDate: string): number => {
+  if (!birthDate) return 25;
+  const birth = new Date(birthDate);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+};
 
 export interface CompletedSession {
   id?: string;
@@ -63,16 +76,18 @@ interface SupabaseState {
   ) => Promise<{ isPR: boolean; new1RM: number; logId: string }>;
   updateLogFeedback: (logId: string, rpe: number, form_tags: string[]) => Promise<void>;
   updateBodyweight: (bw: number) => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   completeOnboarding: (data: {
     body_weight: number;
     current_1rm_muscleup: number;
     current_1rm_pullup: number;
     current_1rm_dips: number;
     current_1rm_squat: number;
-    age: number;
+    birth_date: string;
     height: number;
     goal_program: string;
     gender: 'Homme' | 'Femme';
+    activity_level?: number;
   }) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -288,6 +303,10 @@ export const useStore = create<SupabaseState>((set, get) => ({
         current_1rm_dips: 135,
         current_1rm_squat: 140,
         onboarding_completed: false,
+        birth_date: '2000-01-01',
+        height: 180,
+        goal_program: 'maintenance',
+        gender: 'Homme',
       };
 
       const { data: insertedData, error: insertError } = await supabase
@@ -428,6 +447,23 @@ export const useStore = create<SupabaseState>((set, get) => ({
 
     if (!error) {
       set({ profile: { ...profile, body_weight: bw } });
+    }
+  },
+
+  updateProfile: async (updates: Partial<UserProfile>) => {
+    const { profile } = get();
+    if (!profile) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('user_id', profile.user_id);
+
+    if (!error) {
+      set({ profile: { ...profile, ...updates } });
+    } else {
+      console.error('Error updating profile:', error);
+      throw error;
     }
   },
 

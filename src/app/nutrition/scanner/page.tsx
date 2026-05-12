@@ -1283,15 +1283,7 @@ export default function NutritionPage() {
   const { profile: appProfile, updateBodyweight } = useStore();
   const bodyWeight = appProfile?.body_weight || 80;
 
-  const {
-    profile: nutritionProfile,
-    meals,
-    addMeal,
-    removeMeal,
-    updateMealPortion,
-    updateMealMacros,
-    updateProfile,
-  } = useNutritionStore();
+  const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros } = useNutritionStore();
 
   const [isHydrated, setIsHydrated] = useState(false);
   useEffect(() => {
@@ -1308,8 +1300,16 @@ export default function NutritionPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   const targets = useMemo(
-    () => calculateTargets(nutritionProfile, bodyWeight),
-    [nutritionProfile, bodyWeight]
+    () =>
+      calculateTargets(
+        appProfile?.height || 180,
+        calculateAge(appProfile?.birth_date || ''),
+        appProfile?.gender || 'Homme',
+        appProfile?.activity_level || 1.55,
+        appProfile?.goal_program || 'maintain',
+        bodyWeight
+      ),
+    [appProfile, bodyWeight]
   );
 
   const totals = useMemo(
