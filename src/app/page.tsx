@@ -46,6 +46,7 @@ import {
   CalendarDays,
   Zap,
   LineChart,
+  Utensils,
 } from 'lucide-react';
 import React, { useState, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
@@ -979,14 +980,19 @@ export default function App() {
         {[
           { id: 'home', icon: Home, label: 'Accueil' },
           { id: 'sessions', icon: Dumbbell, label: 'Séances' },
+          { id: 'scanner', icon: Utensils, label: 'Nutrition' },
           { id: 'progression', icon: LineChart, label: 'Progrès' },
           { id: 'profile', icon: User, label: 'Profil' },
         ].map((item) => (
           <button
             key={item.id}
-            onClick={() =>
-              setCurrentView(item.id as 'home' | 'sessions' | 'progression' | 'profile')
-            }
+            onClick={() => {
+              if (item.id === 'scanner') {
+                router.push('/nutrition/scanner');
+              } else {
+                setCurrentView(item.id as 'home' | 'sessions' | 'progression' | 'profile');
+              }
+            }}
             className={cn(
               'flex flex-col items-center gap-1 transition-all relative px-4 py-2 rounded-2xl',
               currentView === item.id
