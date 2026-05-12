@@ -1441,14 +1441,26 @@ export default function App() {
   // Auth check
   useEffect(() => {
     const checkUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (error || !user) {
+          // If there's an error (like invalid refresh token), sign out to clear local state
+          if (error) {
+            console.warn('Auth check error, signing out:', error.message);
+            await supabase.auth.signOut();
+          }
+          router.push('/login');
+        } else {
+          await fetchProfile();
+          setHasMounted(true);
+        }
+      } catch (err) {
+        console.error('Unexpected auth error:', err);
         router.push('/login');
-      } else {
-        await fetchProfile();
-        setHasMounted(true);
       }
     };
     checkUser();
