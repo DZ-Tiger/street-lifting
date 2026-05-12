@@ -75,3 +75,32 @@ $$ language plpgsql security definer;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+  -- 8. Create Nutrition Logs Table
+  create table public.nutrition_logs (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  meal_name text not null,
+  calories real not null,
+  protein real not null,
+  carbs real not null,
+  fat real not null,
+  micros jsonb,
+  image_url text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint nutrition_logs_image_url_http_only check (
+    image_url is null
+    or (
+      image_url !~* '^data:'
+      and image_url ~* '^https?://'
+    )
+  )
+  );
+
+  -- Enable RLS for Nutrition Logs
+  alter table public.nutrition_logs enable row level security;
+
+  -- Nutrition Logs Policies
+  create policy "Users can view own nutrition logs" on public.nutrition_logs for select using (auth.uid() = user_id);
+  create policy "Users can insert own nutrition logs" on public.nutrition_logs for insert with check (auth.uid() = user_id);
+  create policy "Users can delete own nutrition logs" on public.nutrition_logs for delete using (auth.uid() = user_id);
