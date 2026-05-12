@@ -17,7 +17,7 @@
 ## 🚀 Commandes Utiles
 - **Dév :** `npm run dev`
 - **Build :** `npm run build`
-- **Lint :** `npm run lint` (Zéro erreur tolérée)
+- **Lint :** `npm run lint` (Zéro erreur tolérée !)
 - **Install :** `npm install`
 
 ## 📏 Standards de Code & Typage
