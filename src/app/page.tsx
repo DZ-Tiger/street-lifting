@@ -53,6 +53,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import ProgressionView from '@/components/ProgressionView';
+import { OnboardingWizard } from '@/components/OnboardingWizard';
 
 export default function App() {
   const router = useRouter();
@@ -193,6 +194,14 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (profile && !profile.onboarding_completed) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-6 pt-12">
+        <OnboardingWizard />
       </div>
     );
   }

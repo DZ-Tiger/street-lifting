@@ -36,7 +36,7 @@
 ---
 
 ## 5. 🗄 DATA (Schéma Supabase)
-- `profiles` : `user_id`, `body_weight`, `current_1rm_pullup`, `current_1rm_dips`, `current_1rm_muscleup`, `current_1rm_squat`
+- `profiles` : `user_id`, `body_weight`, `age`, `height`, `goal_program`, `gender`, `current_1rm_pullup`, `current_1rm_dips`, `current_1rm_muscleup`, `current_1rm_squat`
 - `completed_sessions` : `user_id`, `week_number`, `day_number`, `total_volume`
 - `exercise_logs` : `session_id`, `exercise_name`, `body_weight_used`, `added_weight`, `total_weight`, `reps`, `rpe`, `form_tags`, `calculated_1rm`
 
