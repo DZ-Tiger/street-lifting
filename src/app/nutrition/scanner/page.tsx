@@ -46,11 +46,18 @@ const compressImage = (file: File): Promise<string> =>
         const MAX = 1024;
         let { width, height } = img;
         if (width > height) {
-          if (width > MAX) { height *= MAX / width; width = MAX; }
+          if (width > MAX) {
+            height *= MAX / width;
+            width = MAX;
+          }
         } else {
-          if (height > MAX) { width *= MAX / height; height = MAX; }
+          if (height > MAX) {
+            width *= MAX / height;
+            height = MAX;
+          }
         }
-        canvas.width = width; canvas.height = height;
+        canvas.width = width;
+        canvas.height = height;
         canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
         resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
@@ -101,7 +108,15 @@ const cssVars: React.CSSProperties = {
 
 /* ─────────────────────── Micro-components ─────────────────────── */
 
-const NL = ({ children, className = '', style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
+const NL = ({
+  children,
+  className = '',
+  style,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+}) => (
   <span
     className={`text-[10px] font-medium uppercase tracking-[0.16em] ${className}`}
     style={{ color: 'var(--n-muted)', ...style }}
@@ -110,10 +125,22 @@ const NL = ({ children, className = '', style }: { children: React.ReactNode; cl
   </span>
 );
 
-const NN = ({ children, className = '', style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
+const NN = ({
+  children,
+  className = '',
+  style,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+}) => (
   <span
     className={`font-mono tabular-nums ${className}`}
-    style={{ fontFamily: 'var(--font-geist-mono, ui-monospace, monospace)', fontFeatureSettings: '"tnum" 1, "ss01" 1', ...style }}
+    style={{
+      fontFamily: 'var(--font-geist-mono, ui-monospace, monospace)',
+      fontFeatureSettings: '"tnum" 1, "ss01" 1',
+      ...style,
+    }}
   >
     {children}
   </span>
@@ -148,8 +175,10 @@ const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => 
             return (
               <line
                 key={i}
-                x1={Math.cos(angle) * inner} y1={Math.sin(angle) * inner}
-                x2={Math.cos(angle) * outer} y2={Math.sin(angle) * outer}
+                x1={Math.cos(angle) * inner}
+                y1={Math.sin(angle) * inner}
+                x2={Math.cos(angle) * outer}
+                y2={Math.sin(angle) * outer}
                 stroke={filled ? PALETTE.fg : PALETTE.border}
                 strokeWidth={major ? 1.25 : 0.75}
                 strokeLinecap="round"
@@ -157,11 +186,23 @@ const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => 
             );
           })}
         </g>
-        <circle cx={size / 2} cy={size / 2} r={r} stroke={PALETTE.border} strokeWidth={stroke} fill="none" />
         <circle
-          cx={size / 2} cy={size / 2} r={r}
-          stroke={PALETTE.fg} strokeWidth={stroke} fill="none"
-          strokeDasharray={c} strokeDashoffset={offset}
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={PALETTE.border}
+          strokeWidth={stroke}
+          fill="none"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={PALETTE.fg}
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
           strokeLinecap="round"
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
           style={{ transition: 'stroke-dashoffset 800ms cubic-bezier(.2,.7,.2,1)' }}
@@ -172,11 +213,16 @@ const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => 
           <Flame size={11} strokeWidth={1.5} />
           <NL className="tracking-[0.22em]">Énergie</NL>
         </div>
-        <NN className="text-[44px] leading-none font-medium tracking-tight" style={{ color: PALETTE.fg } as React.CSSProperties}>
+        <NN
+          className="text-[44px] leading-none font-medium tracking-tight"
+          style={{ color: PALETTE.fg } as React.CSSProperties}
+        >
           {consumed.toLocaleString('fr-FR')}
         </NN>
         <div className="mt-1.5 flex items-center gap-1.5">
-          <NN className="text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>/ {goal.toLocaleString('fr-FR')}</NN>
+          <NN className="text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+            / {goal.toLocaleString('fr-FR')}
+          </NN>
           <NL className="text-[9px] tracking-[0.2em]">kcal</NL>
         </div>
         <div
@@ -184,7 +230,12 @@ const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => 
           style={{ border: `1px solid ${PALETTE.border}` }}
         >
           <span className="h-1 w-1 rounded-full" style={{ background: PALETTE.fg }} />
-          <NN className="text-[10px] font-medium" style={{ color: PALETTE.fg } as React.CSSProperties}>{remaining}</NN>
+          <NN
+            className="text-[10px] font-medium"
+            style={{ color: PALETTE.fg } as React.CSSProperties}
+          >
+            {remaining}
+          </NN>
           <NL className="text-[9px] tracking-[0.18em]">restantes</NL>
         </div>
       </div>
@@ -195,9 +246,15 @@ const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => 
 /* ─────────────────────── MacroBar ─────────────────────── */
 
 const MacroBar = ({
-  label, current, target, shade = 'fg',
+  label,
+  current,
+  target,
+  shade = 'fg',
 }: {
-  label: string; current: number; target: number; shade?: 'fg' | 'mid' | 'low';
+  label: string;
+  current: number;
+  target: number;
+  shade?: 'fg' | 'mid' | 'low';
 }) => {
   const pct = Math.min((current / target) * 100, 100);
   const over = current > target;
@@ -207,8 +264,15 @@ const MacroBar = ({
       <div className="flex justify-between items-baseline">
         <NL>{label}</NL>
         <div className="flex items-baseline gap-1">
-          <NN className="text-[13px] font-medium" style={{ color: PALETTE.fg } as React.CSSProperties}>{current}</NN>
-          <NN className="text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>/ {target}g</NN>
+          <NN
+            className="text-[13px] font-medium"
+            style={{ color: PALETTE.fg } as React.CSSProperties}
+          >
+            {current}
+          </NN>
+          <NN className="text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+            / {target}g
+          </NN>
         </div>
       </div>
       <div
@@ -228,7 +292,9 @@ const MacroBar = ({
         ))}
       </div>
       <div className="flex justify-between">
-        <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{Math.round(pct)}%</NN>
+        <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+          {Math.round(pct)}%
+        </NN>
         <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
           {over ? `+${current - target}g` : `−${target - current}g`}
         </NN>
@@ -240,7 +306,9 @@ const MacroBar = ({
 /* ─────────────────────── MealRow ─────────────────────── */
 
 const MealRow = ({
-  meal, onOpen, onDelete,
+  meal,
+  onOpen,
+  onDelete,
 }: {
   meal: HistoryItem;
   onOpen: (m: HistoryItem) => void;
@@ -258,10 +326,18 @@ const MealRow = ({
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 mb-1">
-          <NN className="text-[10px] uppercase tracking-[0.2em]" style={{ color: PALETTE.muted } as React.CSSProperties}>{meal.time}</NN>
+          <NN
+            className="text-[10px] uppercase tracking-[0.2em]"
+            style={{ color: PALETTE.muted } as React.CSSProperties}
+          >
+            {meal.time}
+          </NN>
           <div className="h-px w-2" style={{ background: PALETTE.border }} />
         </div>
-        <div className="text-[15px] font-medium leading-snug truncate" style={{ color: PALETTE.fg }}>
+        <div
+          className="text-[15px] font-medium leading-snug truncate"
+          style={{ color: PALETTE.fg }}
+        >
           {meal.mealName}
         </div>
         <div className="mt-1.5 flex items-center gap-3">
@@ -273,7 +349,8 @@ const MealRow = ({
             <span key={unit} className="flex items-center gap-1">
               <span className="h-1 w-1 rounded-full" style={{ background: dot }} />
               <NN className="text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-                {val}<span className="ml-0.5 text-[9px]">{unit}</span>
+                {val}
+                <span className="ml-0.5 text-[9px]">{unit}</span>
               </NN>
             </span>
           ))}
@@ -281,14 +358,29 @@ const MealRow = ({
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <div className="text-right">
-          <NN className="text-[17px] font-medium leading-none" style={{ color: PALETTE.fg } as React.CSSProperties}>{meal.calories}</NN>
-          <div className="mt-1"><NL className="text-[8px] tracking-[0.22em]">kcal</NL></div>
+          <NN
+            className="text-[17px] font-medium leading-none"
+            style={{ color: PALETTE.fg } as React.CSSProperties}
+          >
+            {meal.calories}
+          </NN>
+          <div className="mt-1">
+            <NL className="text-[8px] tracking-[0.22em]">kcal</NL>
+          </div>
         </div>
         <span
           role="button"
           tabIndex={0}
-          onClick={(e) => { e.stopPropagation(); onDelete(meal.id); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onDelete(meal.id); } }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(meal.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.stopPropagation();
+              onDelete(meal.id);
+            }
+          }}
           className="ml-2 h-8 w-8 inline-flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 hover:bg-[#f3f3f2] transition cursor-pointer"
           style={{ color: PALETTE.muted }}
           aria-label="Supprimer"
@@ -305,8 +397,17 @@ const MealRow = ({
 const CornerBracket = ({ position }: { position: 'tl' | 'tr' | 'bl' | 'br' }) => {
   const rotate = { tl: '', tr: 'rotate-90', bl: '-rotate-90', br: 'rotate-180' }[position];
   return (
-    <div className={`absolute w-10 h-10 ${position === 'tl' ? 'top-0 left-0' : position === 'tr' ? 'top-0 right-0' : position === 'bl' ? 'bottom-0 left-0' : 'bottom-0 right-0'} ${rotate}`}>
-      <svg viewBox="0 0 40 40" className="w-full h-full" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <div
+      className={`absolute w-10 h-10 ${position === 'tl' ? 'top-0 left-0' : position === 'tr' ? 'top-0 right-0' : position === 'bl' ? 'bottom-0 left-0' : 'bottom-0 right-0'} ${rotate}`}
+    >
+      <svg
+        viewBox="0 0 40 40"
+        className="w-full h-full"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      >
         <path d="M2 14 V4 a2 2 0 0 1 2-2 H14" />
       </svg>
     </div>
@@ -339,7 +440,9 @@ const AnalyzingView = ({ onCancel }: { onCancel: () => void }) => {
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
         </button>
-        <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">Analyse</div>
+        <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">
+          Analyse
+        </div>
         <div className="h-10 w-10" />
       </div>
 
@@ -352,7 +455,8 @@ const AnalyzingView = ({ onCancel }: { onCancel: () => void }) => {
           <div
             className="absolute inset-0 animate-pulse"
             style={{
-              backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.04) 0 8px, transparent 8px 16px)',
+              backgroundImage:
+                'repeating-linear-gradient(135deg, rgba(255,255,255,0.04) 0 8px, transparent 8px 16px)',
             }}
           />
           <div className="absolute inset-6 grid grid-cols-3 grid-rows-3 gap-2">
@@ -389,8 +493,8 @@ const AnalyzingView = ({ onCancel }: { onCancel: () => void }) => {
                     state === 'done'
                       ? 'border-white bg-white/10 text-white'
                       : state === 'live'
-                      ? 'border-white/60 text-white/80'
-                      : 'border-white/15 text-white/30'
+                        ? 'border-white/60 text-white/80'
+                        : 'border-white/15 text-white/30'
                   }`}
                 >
                   {state === 'done' ? (
@@ -449,7 +553,16 @@ const ResultView = ({
   onUpdateMacros,
   onUpdatePortion,
 }: {
-  initial: HistoryItem | NutritionResponse & { id?: string; time?: string; portion?: number; baseCalories?: number; baseMacros?: { protein: number; carbs: number; fat: number }; estimatedWeightGrams?: number };
+  initial:
+    | HistoryItem
+    | (NutritionResponse & {
+        id?: string;
+        time?: string;
+        portion?: number;
+        baseCalories?: number;
+        baseMacros?: { protein: number; carbs: number; fat: number };
+        estimatedWeightGrams?: number;
+      });
   image?: string | null;
   onBack: () => void;
   onSave: (portion: number, macros: { protein: number; carbs: number; fat: number }) => void;
@@ -489,7 +602,10 @@ const ResultView = ({
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
         </button>
-        <div className="text-[11px] font-medium uppercase tracking-[0.28em]" style={{ color: PALETTE.fg }}>
+        <div
+          className="text-[11px] font-medium uppercase tracking-[0.28em]"
+          style={{ color: PALETTE.fg }}
+        >
           {mode === 'scan' ? 'Vérifier' : 'Détail repas'}
         </div>
         <div className="h-10 w-10 -mr-2 flex items-center justify-center">
@@ -508,7 +624,9 @@ const ResultView = ({
             style={{
               aspectRatio: '16/9',
               background: PALETTE.surface2,
-              backgroundImage: image ? undefined : `repeating-linear-gradient(135deg, ${PALETTE.border} 0 2px, transparent 2px 14px)`,
+              backgroundImage: image
+                ? undefined
+                : `repeating-linear-gradient(135deg, ${PALETTE.border} 0 2px, transparent 2px 14px)`,
             }}
           >
             {image ? (
@@ -520,7 +638,10 @@ const ResultView = ({
                   style={{ background: PALETTE.bg, borderColor: PALETTE.border }}
                 >
                   <ImageIcon size={12} strokeWidth={1.5} style={{ color: PALETTE.muted }} />
-                  <NN className="text-[10px] uppercase tracking-[0.18em]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+                  <NN
+                    className="text-[10px] uppercase tracking-[0.18em]"
+                    style={{ color: PALETTE.muted } as React.CSSProperties}
+                  >
                     Photo du repas
                   </NN>
                 </div>
@@ -534,7 +655,9 @@ const ResultView = ({
           <div className="flex items-center gap-2 mb-1.5">
             <NL>Repas détecté</NL>
             <div className="h-px flex-1" style={{ background: PALETTE.border }} />
-            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>conf. 94%</NN>
+            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+              conf. 94%
+            </NN>
           </div>
           <button
             onClick={() => setEditName(true)}
@@ -546,23 +669,29 @@ const ResultView = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onBlur={() => setEditName(false)}
-                onKeyDown={(e) => { if (e.key === 'Enter') setEditName(false); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setEditName(false);
+                }}
                 className="text-[22px] font-medium leading-tight bg-transparent outline-none w-full border-b"
                 style={{ color: PALETTE.fg, borderColor: PALETTE.fg }}
               />
             ) : (
               <>
-                <h2 className="text-[22px] font-medium leading-tight flex-1" style={{ color: PALETTE.fg }}>{name}</h2>
-                <Pencil
-                  size={14}
-                  className="mt-2 transition"
-                  style={{ color: PALETTE.muted }}
-                />
+                <h2
+                  className="text-[22px] font-medium leading-tight flex-1"
+                  style={{ color: PALETTE.fg }}
+                >
+                  {name}
+                </h2>
+                <Pencil size={14} className="mt-2 transition" style={{ color: PALETTE.muted }} />
               </>
             )}
           </button>
           {initial.estimatedWeightGrams != null && (
-            <NN className="block mt-2 text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+            <NN
+              className="block mt-2 text-[11px]"
+              style={{ color: PALETTE.muted } as React.CSSProperties}
+            >
               ≈ {Math.round(initial.estimatedWeightGrams * portion)} g
             </NN>
           )}
@@ -577,7 +706,10 @@ const ResultView = ({
             <div>
               <NL>Énergie totale</NL>
               <div className="mt-1 flex items-baseline gap-1.5">
-                <NN className="text-[40px] font-medium leading-none tracking-tight" style={{ color: PALETTE.fg } as React.CSSProperties}>
+                <NN
+                  className="text-[40px] font-medium leading-none tracking-tight"
+                  style={{ color: PALETTE.fg } as React.CSSProperties}
+                >
                   {cal}
                 </NN>
                 <NL className="text-[10px]">kcal</NL>
@@ -586,7 +718,10 @@ const ResultView = ({
             {initial.estimatedWeightGrams != null && (
               <div className="text-right">
                 <NL>Densité</NL>
-                <NN className="block mt-1 text-[13px] font-medium" style={{ color: PALETTE.fg } as React.CSSProperties}>
+                <NN
+                  className="block mt-1 text-[13px] font-medium"
+                  style={{ color: PALETTE.fg } as React.CSSProperties}
+                >
                   {(cal / (initial.estimatedWeightGrams * portion)).toFixed(2)} kcal/g
                 </NN>
               </div>
@@ -594,15 +729,24 @@ const ResultView = ({
           </div>
           {/* Stacked distribution bar */}
           <div>
-            <div className="flex h-2 rounded-full overflow-hidden border" style={{ borderColor: PALETTE.border }}>
+            <div
+              className="flex h-2 rounded-full overflow-hidden border"
+              style={{ borderColor: PALETTE.border }}
+            >
               <div style={{ width: `${(p / macroTotal) * 100}%`, background: PALETTE.fg }} />
               <div style={{ width: `${(cg / macroTotal) * 100}%`, background: PALETTE.ink2 }} />
               <div style={{ width: `${(f / macroTotal) * 100}%`, background: PALETTE.ink3 }} />
             </div>
             <div className="mt-2 flex justify-between">
-              <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>P {Math.round((p / macroTotal) * 100)}%</NN>
-              <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>G {Math.round((cg / macroTotal) * 100)}%</NN>
-              <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>L {Math.round((f / macroTotal) * 100)}%</NN>
+              <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+                P {Math.round((p / macroTotal) * 100)}%
+              </NN>
+              <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+                G {Math.round((cg / macroTotal) * 100)}%
+              </NN>
+              <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+                L {Math.round((f / macroTotal) * 100)}%
+              </NN>
             </div>
           </div>
         </div>
@@ -628,7 +772,11 @@ const ResultView = ({
                   className={`flex-1 h-10 rounded-xl text-[12px] font-medium transition ${
                     active ? '' : 'hover:opacity-70'
                   }`}
-                  style={active ? { background: PALETTE.fg, color: PALETTE.bg } : { color: PALETTE.muted }}
+                  style={
+                    active
+                      ? { background: PALETTE.fg, color: PALETTE.bg }
+                      : { color: PALETTE.muted }
+                  }
                 >
                   <NN>{p.label}</NN>
                 </button>
@@ -679,27 +827,44 @@ const ResultView = ({
                       value={macros[m.k]}
                       onChange={(e) => setMacros({ ...macros, [m.k]: Number(e.target.value) || 0 })}
                       onBlur={() => setEditing(null)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') setEditing(null); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setEditing(null);
+                      }}
                       className="w-full bg-transparent outline-none font-mono tabular-nums text-[22px] font-medium border-b"
                       style={{ color: PALETTE.fg, borderColor: PALETTE.fg }}
                     />
                   ) : (
                     <div className="flex items-baseline gap-1">
-                      <NN className="text-[22px] font-medium leading-none" style={{ color: PALETTE.fg } as React.CSSProperties}>
+                      <NN
+                        className="text-[22px] font-medium leading-none"
+                        style={{ color: PALETTE.fg } as React.CSSProperties}
+                      >
                         {macroAt(m.k)}
                       </NN>
-                      <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{m.unit}</NN>
+                      <NN
+                        className="text-[10px]"
+                        style={{ color: PALETTE.muted } as React.CSSProperties}
+                      >
+                        {m.unit}
+                      </NN>
                     </div>
                   )}
-                  <NN className="block mt-1.5 text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+                  <NN
+                    className="block mt-1.5 text-[9px]"
+                    style={{ color: PALETTE.muted } as React.CSSProperties}
+                  >
                     {Math.round(macroAt(m.k) * m.kcalFactor)} kcal
                   </NN>
-                  <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: PALETTE.surface2 }}>
+                  <div
+                    className="mt-2 h-[3px] rounded-full overflow-hidden"
+                    style={{ background: PALETTE.surface2 }}
+                  >
                     <div
                       className="h-full rounded-full"
                       style={{
                         width: `${Math.min((macroAt(m.k) / (m.k === 'protein' ? 60 : m.k === 'carbs' ? 90 : 40)) * 100, 100)}%`,
-                        background: idx === 0 ? PALETTE.fg : idx === 1 ? PALETTE.ink2 : PALETTE.ink3,
+                        background:
+                          idx === 0 ? PALETTE.fg : idx === 1 ? PALETTE.ink2 : PALETTE.ink3,
                       }}
                     />
                   </div>
@@ -719,7 +884,9 @@ const ResultView = ({
             >
               <NL>Micronutriments</NL>
               <div className="flex items-center gap-2" style={{ color: PALETTE.muted }}>
-                <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{initial.micros.length} mesures</NN>
+                <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+                  {initial.micros.length} mesures
+                </NN>
                 {showMicros ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </div>
             </button>
@@ -732,7 +899,12 @@ const ResultView = ({
                     style={{ borderColor: PALETTE.border }}
                   >
                     <NL className="text-[9px]">{mi.name}</NL>
-                    <NN className="text-[11px] font-medium" style={{ color: PALETTE.fg } as React.CSSProperties}>{mi.amount}</NN>
+                    <NN
+                      className="text-[11px] font-medium"
+                      style={{ color: PALETTE.fg } as React.CSSProperties}
+                    >
+                      {mi.amount}
+                    </NN>
                   </div>
                 ))}
               </div>
@@ -750,7 +922,12 @@ const ResultView = ({
           <button
             onClick={onBack}
             className="px-4 rounded-2xl border flex items-center gap-2 active:scale-[0.98] transition hover:opacity-80"
-            style={{ height: 52, borderColor: PALETTE.border, background: PALETTE.surface, color: PALETTE.fg }}
+            style={{
+              height: 52,
+              borderColor: PALETTE.border,
+              background: PALETTE.surface,
+              color: PALETTE.fg,
+            }}
           >
             <RotateCcw size={16} strokeWidth={1.75} />
             <NL className="text-[10px]">Recommencer</NL>
@@ -791,8 +968,21 @@ const SettingsSheet = ({
   open: boolean;
   onClose: () => void;
   bodyWeight: number;
-  nutritionProfile: { height: number; age: number; gender: GenderType; activityLevel: number; goal: GoalType };
-  onSave: (data: { weight: number; height: number; age: number; gender: GenderType; activity: number; goal: GoalType }) => void;
+  nutritionProfile: {
+    height: number;
+    age: number;
+    gender: GenderType;
+    activityLevel: number;
+    goal: GoalType;
+  };
+  onSave: (data: {
+    weight: number;
+    height: number;
+    age: number;
+    gender: GenderType;
+    activity: number;
+    goal: GoalType;
+  }) => void;
   isSaving: boolean;
 }) => {
   const [weight, setWeight] = useState(bodyWeight);
@@ -801,17 +991,6 @@ const SettingsSheet = ({
   const [gender, setGender] = useState<GenderType>(nutritionProfile.gender);
   const [activity, setActivity] = useState(nutritionProfile.activityLevel);
   const [goal, setGoal] = useState<GoalType>(nutritionProfile.goal);
-
-  useEffect(() => {
-    if (open) {
-      setWeight(bodyWeight);
-      setHeight(nutritionProfile.height);
-      setAge(nutritionProfile.age);
-      setGender(nutritionProfile.gender);
-      setActivity(nutritionProfile.activityLevel);
-      setGoal(nutritionProfile.goal);
-    }
-  }, [open, bodyWeight, nutritionProfile]);
 
   if (!open) return null;
 
@@ -826,7 +1005,9 @@ const SettingsSheet = ({
           <div className="h-1 w-9 rounded-full" style={{ background: PALETTE.border }} />
         </div>
         <div className="px-5 pb-2 pt-1 flex items-center justify-between">
-          <div className="text-[16px] font-medium" style={{ color: PALETTE.fg }}>Paramètres</div>
+          <div className="text-[16px] font-medium" style={{ color: PALETTE.fg }}>
+            Paramètres
+          </div>
           <button
             onClick={onClose}
             className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-[#f3f3f2]"
@@ -844,7 +1025,11 @@ const SettingsSheet = ({
               { l: 'Taille', val: height, set: setHeight, u: 'cm' },
               { l: 'Âge', val: age, set: setAge, u: 'ans' },
             ].map((f) => (
-              <div key={f.l} className="border rounded-xl p-3" style={{ borderColor: PALETTE.border }}>
+              <div
+                key={f.l}
+                className="border rounded-xl p-3"
+                style={{ borderColor: PALETTE.border }}
+              >
                 <NL>{f.l}</NL>
                 <div className="mt-1 flex items-baseline gap-1">
                   <input
@@ -866,7 +1051,11 @@ const SettingsSheet = ({
                     key={g}
                     onClick={() => setGender(g)}
                     className="flex-1 h-8 rounded-lg text-[12px] font-medium transition"
-                    style={gender === g ? { background: PALETTE.fg, color: PALETTE.bg } : { color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+                    style={
+                      gender === g
+                        ? { background: PALETTE.fg, color: PALETTE.bg }
+                        : { color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }
+                    }
                   >
                     {g === 'M' ? 'Homme' : 'Femme'}
                   </button>
@@ -878,18 +1067,20 @@ const SettingsSheet = ({
           <div>
             <NL className="mb-2 block">Objectif</NL>
             <div className="grid grid-cols-3 gap-2">
-              {([
+              {[
                 { k: 'cut' as GoalType, l: 'Sèche' },
                 { k: 'maintain' as GoalType, l: 'Maintien' },
                 { k: 'bulk' as GoalType, l: 'Prise' },
-              ]).map((g) => (
+              ].map((g) => (
                 <button
                   key={g.k}
                   onClick={() => setGoal(g.k)}
                   className="h-11 rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
-                  style={goal === g.k
-                    ? { background: PALETTE.fg, color: PALETTE.bg, borderColor: PALETTE.fg }
-                    : { borderColor: PALETTE.border, color: PALETTE.muted }}
+                  style={
+                    goal === g.k
+                      ? { background: PALETTE.fg, color: PALETTE.bg, borderColor: PALETTE.fg }
+                      : { borderColor: PALETTE.border, color: PALETTE.muted }
+                  }
                 >
                   {g.l}
                 </button>
@@ -913,12 +1104,23 @@ const SettingsSheet = ({
                     className="w-full h-12 px-4 rounded-xl border flex items-center justify-between transition"
                     style={{ borderColor: active ? PALETTE.fg : PALETTE.border }}
                   >
-                    <span className="text-[13px] font-medium" style={{ color: PALETTE.fg }}>{a.l}</span>
+                    <span className="text-[13px] font-medium" style={{ color: PALETTE.fg }}>
+                      {a.l}
+                    </span>
                     <div className="flex items-center gap-3">
-                      <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{a.s}</NN>
+                      <NN
+                        className="text-[10px]"
+                        style={{ color: PALETTE.muted } as React.CSSProperties}
+                      >
+                        {a.s}
+                      </NN>
                       <span
                         className="h-3.5 w-3.5 rounded-full border"
-                        style={active ? { background: PALETTE.fg, borderColor: PALETTE.fg } : { borderColor: PALETTE.border }}
+                        style={
+                          active
+                            ? { background: PALETTE.fg, borderColor: PALETTE.fg }
+                            : { borderColor: PALETTE.border }
+                        }
                       />
                     </div>
                   </button>
@@ -951,7 +1153,13 @@ const ManualSheet = ({
 }: {
   open: boolean;
   onClose: () => void;
-  onSave: (data: { name: string; calories: number; protein: number; carbs: number; fat: number }) => void;
+  onSave: (data: {
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  }) => void;
   isSaving: boolean;
 }) => {
   const [name, setName] = useState('');
@@ -967,8 +1175,18 @@ const ManualSheet = ({
       toast.error('Veuillez remplir tous les champs.');
       return;
     }
-    onSave({ name, calories: Number(calories), protein: Number(protein), carbs: Number(carbs), fat: Number(fat) });
-    setName(''); setCalories(''); setProtein(''); setCarbs(''); setFat('');
+    onSave({
+      name,
+      calories: Number(calories),
+      protein: Number(protein),
+      carbs: Number(carbs),
+      fat: Number(fat),
+    });
+    setName('');
+    setCalories('');
+    setProtein('');
+    setCarbs('');
+    setFat('');
   };
 
   return (
@@ -982,8 +1200,14 @@ const ManualSheet = ({
           <div className="h-1 w-9 rounded-full" style={{ background: PALETTE.border }} />
         </div>
         <div className="px-5 pb-2 pt-1 flex items-center justify-between">
-          <div className="text-[16px] font-medium" style={{ color: PALETTE.fg }}>Saisie manuelle</div>
-          <button onClick={onClose} className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-[#f3f3f2]" style={{ color: PALETTE.fg }}>
+          <div className="text-[16px] font-medium" style={{ color: PALETTE.fg }}>
+            Saisie manuelle
+          </div>
+          <button
+            onClick={onClose}
+            className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-[#f3f3f2]"
+            style={{ color: PALETTE.fg }}
+          >
             <X size={16} />
           </button>
         </div>
@@ -1036,7 +1260,11 @@ const ManualSheet = ({
             className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] mt-2 disabled:opacity-50"
             style={{ background: PALETTE.fg, color: PALETTE.bg }}
           >
-            {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Ajouter au journal'}
+            {isSaving ? (
+              <Loader2 size={16} className="animate-spin mx-auto" />
+            ) : (
+              'Ajouter au journal'
+            )}
           </button>
         </div>
       </div>
@@ -1122,15 +1350,22 @@ export default function NutritionPage() {
     }
   };
 
-  const handleSaveScanned = async (portion: number, macros: { protein: number; carbs: number; fat: number }) => {
+  const handleSaveScanned = async (
+    portion: number,
+    macros: { protein: number; carbs: number; fat: number }
+  ) => {
     if (!scanResult) return;
     setIsSaving(true);
-    const finalCalories = Math.round((macros.protein * 4 + macros.carbs * 4 + macros.fat * 9) * portion);
+    const finalCalories = Math.round(
+      (macros.protein * 4 + macros.carbs * 4 + macros.fat * 9) * portion
+    );
     const finalProtein = Math.round(macros.protein * portion);
     const finalCarbs = Math.round(macros.carbs * portion);
     const finalFat = Math.round(macros.fat * portion);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         await supabase.from('nutrition_logs').insert({
           user_id: user.id,
@@ -1170,13 +1405,23 @@ export default function NutritionPage() {
   };
 
   const handleSaveSettings = async (data: {
-    weight: number; height: number; age: number;
-    gender: GenderType; activity: number; goal: GoalType;
+    weight: number;
+    height: number;
+    age: number;
+    gender: GenderType;
+    activity: number;
+    goal: GoalType;
   }) => {
     setIsSaving(true);
     try {
       if (data.weight !== bodyWeight) await updateBodyweight(data.weight);
-      updateProfile({ height: data.height, age: data.age, gender: data.gender, activityLevel: data.activity, goal: data.goal });
+      updateProfile({
+        height: data.height,
+        age: data.age,
+        gender: data.gender,
+        activityLevel: data.activity,
+        goal: data.goal,
+      });
       toast.success('Paramètres mis à jour !');
       setSettingsOpen(false);
     } catch {
@@ -1187,11 +1432,17 @@ export default function NutritionPage() {
   };
 
   const handleManualSave = async (data: {
-    name: string; calories: number; protein: number; carbs: number; fat: number;
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
   }) => {
     setIsSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         await supabase.from('nutrition_logs').insert({
           user_id: user.id,
@@ -1249,7 +1500,10 @@ export default function NutritionPage() {
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
         </button>
-        <div className="text-[11px] font-medium uppercase tracking-[0.28em]" style={{ color: PALETTE.fg }}>
+        <div
+          className="text-[11px] font-medium uppercase tracking-[0.28em]"
+          style={{ color: PALETTE.fg }}
+        >
           Nutrition
         </div>
         <button
@@ -1265,16 +1519,28 @@ export default function NutritionPage() {
         {/* Date strip */}
         <div className="px-5 mb-4 flex items-center justify-between">
           <div>
-            <div className="text-[20px] font-medium leading-tight" style={{ color: PALETTE.fg }}>Aujourd&apos;hui</div>
-            <NN className="text-[11px] tracking-[0.05em]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-              {new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long' })}
+            <div className="text-[20px] font-medium leading-tight" style={{ color: PALETTE.fg }}>
+              Aujourd&apos;hui
+            </div>
+            <NN
+              className="text-[11px] tracking-[0.05em]"
+              style={{ color: PALETTE.muted } as React.CSSProperties}
+            >
+              {new Date().toLocaleDateString('fr-FR', {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'long',
+              })}
             </NN>
           </div>
           <div
             className="flex items-center gap-2 px-2.5 py-1 rounded-full border"
             style={{ borderColor: PALETTE.border }}
           >
-            <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: PALETTE.fg }} />
+            <span
+              className="h-1.5 w-1.5 rounded-full animate-pulse"
+              style={{ background: PALETTE.fg }}
+            />
             <NL className="text-[9px] tracking-[0.2em]">
               {{ cut: 'Sèche', maintain: 'Maintien', bulk: 'Prise' }[nutritionProfile.goal]}
             </NL>
@@ -1301,10 +1567,17 @@ export default function NutritionPage() {
               className="px-3 py-3 text-center"
               style={i > 0 ? { borderLeft: `1px solid ${PALETTE.border}` } : undefined}
             >
-              <NN className="block text-[18px] font-medium leading-none" style={{ color: PALETTE.fg } as React.CSSProperties}>{s.v}</NN>
+              <NN
+                className="block text-[18px] font-medium leading-none"
+                style={{ color: PALETTE.fg } as React.CSSProperties}
+              >
+                {s.v}
+              </NN>
               <div className="mt-1.5 flex items-center justify-center gap-1">
                 <NL className="text-[8px] tracking-[0.22em]">{s.l}</NL>
-                <NN className="text-[8px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{s.s}</NN>
+                <NN className="text-[8px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+                  {s.s}
+                </NN>
               </div>
             </div>
           ))}
@@ -1314,11 +1587,23 @@ export default function NutritionPage() {
         <div className="px-5 mb-8">
           <div className="flex items-center justify-between mb-4">
             <NL>Macronutriments</NL>
-            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>P·G·L &nbsp; 30 / 45 / 25</NN>
+            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+              P·G·L &nbsp; 30 / 45 / 25
+            </NN>
           </div>
           <div className="space-y-5">
-            <MacroBar label="Protéines" current={totals.protein} target={targets.targetProtein} shade="fg" />
-            <MacroBar label="Glucides" current={totals.carbs} target={targets.targetCarbs} shade="mid" />
+            <MacroBar
+              label="Protéines"
+              current={totals.protein}
+              target={targets.targetProtein}
+              shade="fg"
+            />
+            <MacroBar
+              label="Glucides"
+              current={totals.carbs}
+              target={targets.targetCarbs}
+              shade="mid"
+            />
             <MacroBar label="Lipides" current={totals.fat} target={targets.targetFat} shade="low" />
           </div>
         </div>
@@ -1327,7 +1612,9 @@ export default function NutritionPage() {
         <div className="px-5">
           <div className="flex items-center justify-between mb-2">
             <NL>Journal du jour</NL>
-            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>{meals.length} entrées</NN>
+            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
+              {meals.length} entrées
+            </NN>
           </div>
           <div
             className="border rounded-2xl overflow-hidden"
@@ -1339,7 +1626,10 @@ export default function NutritionPage() {
               </div>
             ) : (
               meals.map((m, i) => (
-                <div key={m.id} style={i > 0 ? { borderTop: `1px solid ${PALETTE.border}` } : undefined}>
+                <div
+                  key={m.id}
+                  style={i > 0 ? { borderTop: `1px solid ${PALETTE.border}` } : undefined}
+                >
                   <MealRow meal={m} onOpen={openMealDetail} onDelete={handleDelete} />
                 </div>
               ))
@@ -1363,7 +1653,9 @@ export default function NutritionPage() {
             <span className="text-[11px] font-medium uppercase tracking-[0.18em]">Manuel</span>
           </button>
           <button
-            onClick={() => { setView('scanner'); }}
+            onClick={() => {
+              setView('scanner');
+            }}
             className="h-14 flex-1 rounded-2xl flex items-center justify-center gap-2.5 active:scale-[0.98] transition hover:opacity-90"
             style={{ background: PALETTE.fg, color: PALETTE.bg }}
           >
@@ -1385,7 +1677,9 @@ export default function NutritionPage() {
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
         </button>
-        <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">Scanner</div>
+        <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">
+          Scanner
+        </div>
         <div className="h-10 w-10 -mr-2 flex items-center justify-center text-white/40">
           <Camera size={18} />
         </div>
@@ -1455,7 +1749,10 @@ export default function NutritionPage() {
             <span className="h-[60px] w-[60px] rounded-full bg-white" />
           </button>
           <button
-            onClick={() => { setImage(null); setScanResult(null); }}
+            onClick={() => {
+              setImage(null);
+              setScanResult(null);
+            }}
             className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
           >
             <RotateCcw size={18} />
@@ -1480,11 +1777,19 @@ export default function NutritionPage() {
       className="relative min-h-screen overflow-hidden"
       style={{ ...cssVars, background: PALETTE.bg } as React.CSSProperties}
     >
-      <div className="relative h-screen overflow-hidden" style={{ maxWidth: 480, margin: '0 auto' }}>
+      <div
+        className="relative h-screen overflow-hidden"
+        style={{ maxWidth: 480, margin: '0 auto' }}
+      >
         {view === 'dashboard' && renderDashboard()}
         {view === 'scanner' && renderScanner()}
         {view === 'analyzing' && (
-          <AnalyzingView onCancel={() => { setView('scanner'); setImage(null); }} />
+          <AnalyzingView
+            onCancel={() => {
+              setView('scanner');
+              setImage(null);
+            }}
+          />
         )}
         {view === 'result' && scanResult && (
           <ResultView
@@ -1507,7 +1812,10 @@ export default function NutritionPage() {
           <ResultView
             initial={selectedMeal}
             image={null}
-            onBack={() => { setSelectedMeal(null); setView('dashboard'); }}
+            onBack={() => {
+              setSelectedMeal(null);
+              setView('dashboard');
+            }}
             onSave={(portion, macros) => {
               updateMealPortion(selectedMeal.id, portion);
               updateMealMacros(selectedMeal.id, macros);
@@ -1523,6 +1831,11 @@ export default function NutritionPage() {
         )}
 
         <SettingsSheet
+          key={
+            settingsOpen
+              ? `${bodyWeight}-${nutritionProfile.height}-${nutritionProfile.age}-${nutritionProfile.gender}-${nutritionProfile.activityLevel}-${nutritionProfile.goal}`
+              : 'settings-closed'
+          }
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
           bodyWeight={bodyWeight}
