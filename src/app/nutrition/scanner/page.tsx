@@ -329,6 +329,7 @@ export default function NutritionPage() {
         portion: portionValue,
         baseCalories: result.calories,
         baseMacros: result.macros,
+        estimatedWeightGrams: result.estimatedWeightGrams,
       });
 
       toast.success('Repas enregistré !');
