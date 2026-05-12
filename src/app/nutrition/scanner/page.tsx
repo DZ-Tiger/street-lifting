@@ -1382,10 +1382,16 @@ export default function NutritionPage() {
     try {
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('nutrition_logs').insert({
-          user_id: user.id,
+      if (authError || !user) {
+        toast.error('Session expirée, veuillez vous reconnecter.');
+        await supabase.auth.signOut();
+        router.push('/login');
+        return;
+      }
+      await supabase.from('nutrition_logs').insert({
+        user_id: user.id,
           meal_name: scanResult.mealName,
           calories: finalCalories,
           protein: finalProtein,
@@ -1458,10 +1464,16 @@ export default function NutritionPage() {
     try {
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('nutrition_logs').insert({
-          user_id: user.id,
+      if (authError || !user) {
+        toast.error('Session expirée, veuillez vous reconnecter.');
+        await supabase.auth.signOut();
+        router.push('/login');
+        return;
+      }
+      await supabase.from('nutrition_logs').insert({
+        user_id: user.id,
           meal_name: data.name,
           calories: data.calories,
           protein: data.protein,

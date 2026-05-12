@@ -271,61 +271,71 @@ export const useStore = create<SupabaseState>((set, get) => ({
 
   fetchProfile: async () => {
     set({ loading: true });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return set({ profile: null, loading: false });
+    try {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
 
-    // Tentative de récupération du profil (plusieurs essais car le trigger peut être lent)
-    let profileData = null;
-    let retries = 3;
-
-    while (retries > 0 && !profileData) {
-      const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
-
-      if (data) {
-        profileData = data;
-      } else {
-        retries--;
-        if (retries > 0) await new Promise((res) => setTimeout(res, 500));
+      if (error || !user) {
+        if (error) console.warn('Error fetching user in store:', error.message);
+        return set({ profile: null, loading: false });
       }
-    }
 
-    if (profileData) {
-      set({ profile: profileData, loading: false });
-    } else {
-      // Si vraiment rien après les retours, on tente l'insertion manuelle
-      const newProfile = {
-        user_id: user.id,
-        body_weight: 75,
-        current_1rm_muscleup: 90,
-        current_1rm_pullup: 115,
-        current_1rm_dips: 135,
-        current_1rm_squat: 140,
-        onboarding_completed: false,
-        birth_date: '2000-01-01',
-        height: 180,
-        goal_program: 'maintenance',
-        gender: 'Homme',
-      };
+      // Tentative de récupération du profil (plusieurs essais car le trigger peut être lent)
+      let profileData = null;
+      let retries = 3;
 
-      const { data: insertedData, error: insertError } = await supabase
-        .from('profiles')
-        .insert(newProfile)
-        .select()
-        .single();
+      while (retries > 0 && !profileData) {
+        const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
 
-      if (insertError) {
-        // Probablement déjà inséré entre temps
-        const { data: finalData } = await supabase
+        if (data) {
+          profileData = data;
+        } else {
+          retries--;
+          if (retries > 0) await new Promise((res) => setTimeout(res, 500));
+        }
+      }
+
+      if (profileData) {
+        set({ profile: profileData, loading: false });
+      } else {
+        // Si vraiment rien après les retours, on tente l'insertion manuelle
+        const newProfile = {
+          user_id: user.id,
+          body_weight: 75,
+          current_1rm_muscleup: 90,
+          current_1rm_pullup: 115,
+          current_1rm_dips: 135,
+          current_1rm_squat: 140,
+          onboarding_completed: false,
+          birth_date: '2000-01-01',
+          height: 180,
+          goal_program: 'maintenance',
+          gender: 'Homme',
+        };
+
+        const { data: insertedData, error: insertError } = await supabase
           .from('profiles')
-          .select('*')
-          .eq('user_id', user.id)
+          .insert(newProfile)
+          .select()
           .single();
-        set({ profile: finalData as UserProfile, loading: false });
-      } else {
-        set({ profile: insertedData as UserProfile, loading: false });
+
+        if (insertError) {
+          // Probablement déjà inséré entre temps
+          const { data: finalData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+          set({ profile: finalData as UserProfile, loading: false });
+        } else {
+          set({ profile: insertedData as UserProfile, loading: false });
+        }
       }
+    } catch (err) {
+      console.error('Unexpected error in fetchProfile:', err);
+      set({ profile: null, loading: false });
     }
   },
 
