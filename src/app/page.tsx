@@ -6,6 +6,7 @@ import {
   progressionMatrix,
   motivationalMessages,
   ExerciseType,
+  calculateAge,
 } from '@/store/useStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ import {
   Flame,
   Home,
   User,
+  Settings,
   BarChart3,
   Quote,
   CalendarDays,
@@ -69,6 +71,7 @@ export default function App() {
     updatePerformance,
     updateLogFeedback,
     updateBodyweight,
+    updateProfile,
     signOut,
   } = useStore();
 
@@ -86,7 +89,46 @@ export default function App() {
 
   // Profile State
   const [isWeightDialogOpen, setIsWeightDialogOpen] = useState(false);
+  const [isEditingSettings, setIsEditingSettings] = useState(false);
   const [newBw, setNewBw] = useState(75);
+  const [editBirthDate, setEditBirthDate] = useState('2000-01-01');
+  const [editHeight, setEditHeight] = useState(180);
+  const [editGoal, setEditGoal] = useState('maintain');
+  const [editGender, setEditGender] = useState<'Homme' | 'Femme'>('Homme');
+  const [editActivity, setEditActivity] = useState(1.55);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      // On décale légèrement pour éviter le rendu en cascade selon les règles du projet
+      setTimeout(() => {
+        setEditBirthDate(profile.birth_date || '2000-01-01');
+        setEditHeight(profile.height);
+        setEditGoal(profile.goal_program);
+        setEditGender(profile.gender);
+        setEditActivity(profile.activity_level || 1.55);
+      }, 0);
+    }
+  }, [profile]);
+
+  const handleUpdateProfile = async () => {
+    setIsSavingProfile(true);
+    try {
+      await updateProfile({
+        birth_date: editBirthDate,
+        height: editHeight,
+        goal_program: editGoal,
+        gender: editGender,
+        activity_level: editActivity,
+      });
+      toast.success('Profil mis à jour');
+      setIsEditingSettings(false);
+    } catch {
+      toast.error('Erreur lors de la mise à jour');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // Timer & Feedback State
   const [currentLogId, setCurrentLogId] = useState<string | null>(null);
@@ -833,106 +875,339 @@ export default function App() {
               </div>
 
               {/* Bodyweight Card */}
-              <Card className="bg-white border-slate-100 rounded-[2rem] shadow-sm overflow-hidden">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
-                      <Scale className="w-3 h-3" /> Poids Actuel
-                    </p>
-                    <p className="text-3xl font-black text-slate-800">
-                      {bodyWeight}
-                      <span className="text-sm font-bold text-slate-400 ml-1">kg</span>
-                    </p>
-                  </div>
-                  <Dialog open={isWeightDialogOpen} onOpenChange={setIsWeightDialogOpen}>
-                    <DialogTrigger
-                      render={
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl border-slate-200 font-bold uppercase text-[10px] italic h-10 px-4"
-                        >
-                          Modifier <Pencil className="w-3 h-3 ml-2" />
-                        </Button>
-                      }
-                    />
-                    <DialogContent className="sm:max-w-[400px] rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
-                      <div className="bg-slate-900 p-6 text-white">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl font-black uppercase italic tracking-tight flex items-center gap-2">
-                            <Scale className="w-5 h-5 text-blue-400" /> Mon Poids Actuel
-                          </DialogTitle>
-                        </DialogHeader>
-                      </div>
-
-                      <div className="p-8 bg-white space-y-8">
-                        <div className="flex items-center justify-between gap-4">
+              <div className="grid grid-cols-1 gap-4">
+                <Card className="bg-white border-slate-100 rounded-[2rem] shadow-sm overflow-hidden">
+                  <CardContent className="p-6 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
+                        <Scale className="w-3 h-3" /> Poids Actuel
+                      </p>
+                      <p className="text-3xl font-black text-slate-800">
+                        {bodyWeight}
+                        <span className="text-sm font-bold text-slate-400 ml-1">kg</span>
+                      </p>
+                    </div>
+                    <Dialog open={isWeightDialogOpen} onOpenChange={setIsWeightDialogOpen}>
+                      <DialogTrigger
+                        render={
                           <Button
                             variant="outline"
-                            size="icon"
-                            className="h-16 w-16 rounded-2xl border-2 border-slate-100 hover:border-blue-600 hover:text-blue-600 transition-all active:scale-90"
-                            onMouseDown={() =>
-                              startAdjusting(() => setNewBw((prev) => Math.max(0, prev - 0.5)))
-                            }
-                            onMouseUp={stopAdjusting}
-                            onMouseLeave={stopAdjusting}
-                            onTouchStart={(e) => {
-                              e.preventDefault();
-                              startAdjusting(() => setNewBw((prev) => Math.max(0, prev - 0.5)));
-                            }}
-                            onTouchEnd={stopAdjusting}
+                            size="sm"
+                            className="rounded-xl border-slate-200 font-bold uppercase text-[10px] italic h-10 px-4"
                           >
-                            <Minus className="w-6 h-6" />
+                            Modifier <Pencil className="w-3 h-3 ml-2" />
                           </Button>
+                        }
+                      />
+                      <DialogContent className="sm:max-w-[400px] rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
+                        <div className="bg-slate-900 p-6 text-white">
+                          <DialogHeader>
+                            <DialogTitle className="text-xl font-black uppercase italic tracking-tight flex items-center gap-2">
+                              <Scale className="w-5 h-5 text-blue-400" /> Mon Poids Actuel
+                            </DialogTitle>
+                          </DialogHeader>
+                        </div>
 
-                          <div className="flex-1 text-center group">
-                            <div className="relative">
-                              <Input
-                                type="number"
-                                value={newBw}
-                                onChange={(e) => setNewBw(parseFloat(e.target.value) || 0)}
-                                className="text-5xl font-black text-center border-none shadow-none focus-visible:ring-0 p-0 h-auto text-slate-900"
-                              />
-                              <div className="h-1 w-12 bg-blue-600 mx-auto rounded-full mt-1 group-focus-within:w-24 transition-all duration-300" />
+                        <div className="p-8 bg-white space-y-8">
+                          <div className="flex items-center justify-between gap-4">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-16 w-16 rounded-2xl border-2 border-slate-100 hover:border-blue-600 hover:text-blue-600 transition-all active:scale-90"
+                              onMouseDown={() =>
+                                startAdjusting(() => setNewBw((prev) => Math.max(0, prev - 0.5)))
+                              }
+                              onMouseUp={stopAdjusting}
+                              onMouseLeave={stopAdjusting}
+                              onTouchStart={(e) => {
+                                e.preventDefault();
+                                startAdjusting(() => setNewBw((prev) => Math.max(0, prev - 0.5)));
+                              }}
+                              onTouchEnd={stopAdjusting}
+                            >
+                              <Minus className="w-6 h-6" />
+                            </Button>
+
+                            <div className="flex-1 text-center group">
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  value={newBw}
+                                  onChange={(e) => setNewBw(parseFloat(e.target.value) || 0)}
+                                  className="text-5xl font-black text-center border-none shadow-none focus-visible:ring-0 p-0 h-auto text-slate-900"
+                                />
+                                <div className="h-1 w-12 bg-blue-600 mx-auto rounded-full mt-1 group-focus-within:w-24 transition-all duration-300" />
+                              </div>
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2 block">
+                                Kilogrammes
+                              </span>
                             </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2 block">
-                              Kilogrammes
-                            </span>
+
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-16 w-16 rounded-2xl border-2 border-slate-100 hover:border-blue-600 hover:text-blue-600 transition-all active:scale-90"
+                              onMouseDown={() =>
+                                startAdjusting(() => setNewBw((prev) => prev + 0.5))
+                              }
+                              onMouseUp={stopAdjusting}
+                              onMouseLeave={stopAdjusting}
+                              onTouchStart={(e) => {
+                                e.preventDefault();
+                                startAdjusting(() => setNewBw((prev) => prev + 0.5));
+                              }}
+                              onTouchEnd={stopAdjusting}
+                            >
+                              <Plus className="w-6 h-6" />
+                            </Button>
                           </div>
 
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-16 w-16 rounded-2xl border-2 border-slate-100 hover:border-blue-600 hover:text-blue-600 transition-all active:scale-90"
-                            onMouseDown={() => startAdjusting(() => setNewBw((prev) => prev + 0.5))}
-                            onMouseUp={stopAdjusting}
-                            onMouseLeave={stopAdjusting}
-                            onTouchStart={(e) => {
-                              e.preventDefault();
-                              startAdjusting(() => setNewBw((prev) => prev + 0.5));
-                            }}
-                            onTouchEnd={stopAdjusting}
-                          >
-                            <Plus className="w-6 h-6" />
-                          </Button>
+                          <div className="pt-2">
+                            <Button
+                              onClick={handleUpdateBw}
+                              className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase italic rounded-2xl text-lg shadow-xl shadow-blue-500/20 transition-all active:scale-[0.98]"
+                            >
+                              Confirmer la mise à jour
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </CardContent>
+                </Card>
+
+                {/* Paramètres Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2">
+                      <Settings className="w-3 h-3 text-blue-500" /> Paramètres du profil
+                    </h4>
+                    {!isEditingSettings ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsEditingSettings(true)}
+                        className="h-7 text-[10px] font-black uppercase text-blue-600 hover:bg-blue-50 rounded-lg px-3"
+                      >
+                        Modifier <Pencil className="w-3 h-3 ml-2" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsEditingSettings(false)}
+                        className="h-7 text-[10px] font-black uppercase text-slate-400 hover:bg-slate-50 rounded-lg px-3"
+                      >
+                        Annuler
+                      </Button>
+                    )}
+                  </div>
+
+                  <Card className="bg-white border-slate-100 rounded-[2.5rem] shadow-sm overflow-hidden transition-all duration-500">
+                    <CardContent className="p-0">
+                      <div className="divide-y divide-slate-50">
+                        {/* Birthdate / Age Item */}
+                        <div className="p-6 flex items-center justify-between group">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
+                              Naissance & Âge
+                            </Label>
+                            {!isEditingSettings ? (
+                              <p className="text-sm font-bold text-slate-700 uppercase">
+                                {editBirthDate}{' '}
+                                <span className="text-blue-600 ml-2">
+                                  ({calculateAge(editBirthDate)} ans)
+                                </span>
+                              </p>
+                            ) : (
+                              <input
+                                type="date"
+                                value={editBirthDate}
+                                onChange={(e) => setEditBirthDate(e.target.value)}
+                                className="h-10 w-full rounded-xl bg-slate-50 border-none px-4 text-sm font-black text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                              />
+                            )}
+                          </div>
+                          {!isEditingSettings && (
+                            <CalendarDays className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transition-colors" />
+                          )}
                         </div>
 
-                        <div className="pt-2">
-                          <Button
-                            onClick={handleUpdateBw}
-                            className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase italic rounded-2xl text-lg shadow-xl shadow-blue-500/20 transition-all active:scale-[0.98]"
-                          >
-                            Confirmer la mise à jour
-                          </Button>
-                          <p className="text-center text-[9px] text-slate-400 font-bold uppercase mt-4 tracking-wider">
-                            Ton programme s&apos;adaptera automatiquement à ton nouveau poids
-                          </p>
+                        {/* Height Item */}
+                        <div className="p-6 flex items-center justify-between group">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
+                              Taille (CM)
+                            </Label>
+                            {!isEditingSettings ? (
+                              <p className="text-sm font-bold text-slate-700 uppercase">
+                                {editHeight} cm
+                              </p>
+                            ) : (
+                              <input
+                                type="number"
+                                value={editHeight}
+                                onChange={(e) => setEditHeight(parseInt(e.target.value) || 0)}
+                                className="h-10 w-full rounded-xl bg-slate-50 border-none px-4 text-sm font-black text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                              />
+                            )}
+                          </div>
+                          {!isEditingSettings && (
+                            <Info className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transition-colors" />
+                          )}
+                        </div>
+
+                        {/* Gender Item */}
+                        <div className="p-6 flex items-center justify-between group">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
+                              Sexe
+                            </Label>
+                            {!isEditingSettings ? (
+                              <p className="text-sm font-bold text-slate-700 uppercase">
+                                {editGender}
+                              </p>
+                            ) : (
+                              <div className="flex gap-2 mt-2">
+                                {['Homme', 'Femme'].map((g) => (
+                                  <button
+                                    key={g}
+                                    onClick={() => setEditGender(g as 'Homme' | 'Femme')}
+                                    className={cn(
+                                      'flex-1 h-10 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all',
+                                      editGender === g
+                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                        : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
+                                    )}
+                                  >
+                                    {g}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {!isEditingSettings && (
+                            <User className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transition-colors" />
+                          )}
+                        </div>
+
+                        {/* Goal Item */}
+                        <div className="p-6 flex items-center justify-between group">
+                          <div className="space-y-1 flex-1">
+                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
+                              Objectif Programme
+                            </Label>
+                            {!isEditingSettings ? (
+                              <p className="text-sm font-bold text-slate-700 uppercase italic">
+                                {editGoal === 'prise_de_masse'
+                                  ? 'Prise de Masse'
+                                  : editGoal === 'maintenance'
+                                    ? 'Maintenance'
+                                    : 'Sèche Extrême'}
+                              </p>
+                            ) : (
+                              <div className="grid grid-cols-1 gap-2 mt-2">
+                                {[
+                                  { id: 'prise_de_masse', label: 'Prise de Masse' },
+                                  { id: 'maintenance', label: 'Maintenance' },
+                                  { id: 'seche_extreme', label: 'Sèche Extrême' },
+                                ].map((g) => (
+                                  <button
+                                    key={g.id}
+                                    onClick={() => setEditGoal(g.id)}
+                                    className={cn(
+                                      'flex items-center gap-3 h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all',
+                                      editGoal === g.id
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
+                                    )}
+                                  >
+                                    <Target
+                                      className={cn(
+                                        'w-3 h-3',
+                                        editGoal === g.id ? 'text-white' : 'text-slate-300'
+                                      )}
+                                    />
+                                    {g.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {!isEditingSettings && (
+                            <Target className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transition-colors" />
+                          )}
+                        </div>
+
+                        {/* Activity Item */}
+                        <div className="p-6 flex items-center justify-between group">
+                          <div className="space-y-1 flex-1">
+                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
+                              Niveau d&apos;activité
+                            </Label>
+                            {!isEditingSettings ? (
+                              <p className="text-sm font-bold text-slate-700 uppercase">
+                                {editActivity === 1.2
+                                  ? 'Sédentaire'
+                                  : editActivity === 1.55
+                                    ? 'Actif'
+                                    : 'Athlète'}
+                              </p>
+                            ) : (
+                              <div className="grid grid-cols-3 gap-2 mt-2">
+                                {[
+                                  { val: 1.2, label: 'Séd.' },
+                                  { val: 1.55, label: 'Actif' },
+                                  { val: 1.75, label: 'Athlète' },
+                                ].map((a) => (
+                                  <button
+                                    key={a.label}
+                                    onClick={() => setEditActivity(a.val)}
+                                    className={cn(
+                                      'h-10 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all',
+                                      editActivity === a.val
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
+                                    )}
+                                  >
+                                    {a.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {!isEditingSettings && (
+                            <Activity className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transition-colors" />
+                          )}
                         </div>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-                </CardContent>
-              </Card>
+
+                      <AnimatePresence>
+                        {isEditingSettings && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="px-6 pb-6"
+                          >
+                            <Button
+                              onClick={handleUpdateProfile}
+                              disabled={isSavingProfile}
+                              className="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white font-black uppercase italic rounded-2xl text-sm shadow-xl shadow-slate-900/10 transition-all active:scale-[0.98]"
+                            >
+                              {isSavingProfile ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                              ) : (
+                                'Enregistrer les changements'
+                              )}
+                            </Button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
 
               {/* Records Grid */}
               <div className="space-y-4">

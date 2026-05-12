@@ -17,9 +17,6 @@ import {
   RotateCcw,
   Plus,
   Utensils,
-  Settings,
-  Activity,
-  Scale,
   Pencil,
   Save,
 } from 'lucide-react';
@@ -44,14 +41,8 @@ import { NutritionResponse } from '@/app/api/nutrition/scan/route';
 import { cn } from '@/lib/utils';
 
 // STORES
-import {
-  useNutritionStore,
-  calculateTargets,
-  GoalType,
-  HistoryItem,
-  GenderType,
-} from '@/store/useNutritionStore';
-import { useStore } from '@/store/useStore';
+import { useNutritionStore, calculateTargets, HistoryItem } from '@/store/useNutritionStore';
+import { useStore, calculateAge } from '@/store/useStore';
 
 /**
  * UTILS: Compression d'image côté client
@@ -93,12 +84,6 @@ const compressImage = (file: File): Promise<string> => {
   });
 };
 
-const goalLabels: Record<GoalType, string> = {
-  cut: 'Sèche',
-  maintain: 'Maintien',
-  bulk: 'Prise de masse',
-};
-
 const PORTIONS = [
   { label: '1/4', value: 0.25 },
   { label: '1/3', value: 0.3333 },
@@ -115,18 +100,10 @@ export default function NutritionPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ZUSTAND GLOBAL STATES
-  const { profile: appProfile, updateBodyweight } = useStore();
+  const { profile: appProfile } = useStore();
   const bodyWeight = appProfile?.body_weight || 80;
 
-  const {
-    profile: nutritionProfile,
-    meals,
-    addMeal,
-    removeMeal,
-    updateMealPortion,
-    updateMealMacros,
-    updateProfile,
-  } = useNutritionStore();
+  const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros } = useNutritionStore();
 
   const [isHydrated, setIsHydrated] = useState(false);
   useEffect(() => {
@@ -158,30 +135,6 @@ export default function NutritionPage() {
     );
   };
 
-  // ÉTATS PARAMÈTRES (SETTINGS)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [editWeight, setEditWeight] = useState(bodyWeight);
-  const [editHeight, setEditHeight] = useState(nutritionProfile.height);
-  const [editAge, setEditAge] = useState(nutritionProfile.age);
-  const [editGender, setEditGender] = useState<GenderType>(nutritionProfile.gender);
-  const [editActivity, setEditActivity] = useState(nutritionProfile.activityLevel);
-  const [editGoal, setEditGoal] = useState<GoalType>(nutritionProfile.goal);
-
-  // Sync form when modal opens
-  useEffect(() => {
-    if (isSettingsOpen) {
-      const timer = setTimeout(() => {
-        setEditWeight(bodyWeight);
-        setEditHeight(nutritionProfile.height);
-        setEditAge(nutritionProfile.age);
-        setEditGender(nutritionProfile.gender);
-        setEditActivity(nutritionProfile.activityLevel);
-        setEditGoal(nutritionProfile.goal);
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-  }, [isSettingsOpen, bodyWeight, nutritionProfile]);
-
   // ÉTATS MANUELS
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [manualName, setManualName] = useState('');
@@ -192,8 +145,16 @@ export default function NutritionPage() {
 
   // CALCULS DÉRIVÉS
   const targets = useMemo(
-    () => calculateTargets(nutritionProfile, bodyWeight),
-    [nutritionProfile, bodyWeight]
+    () =>
+      calculateTargets(
+        appProfile?.height || 180,
+        calculateAge(appProfile?.birth_date || ''),
+        appProfile?.gender || 'Homme',
+        appProfile?.activity_level || 1.55,
+        appProfile?.goal_program || 'maintain',
+        bodyWeight
+      ),
+    [appProfile, bodyWeight]
   );
 
   const dailyNutrition = useMemo(() => {
@@ -256,30 +217,6 @@ export default function NutritionPage() {
     setImage(null);
     setResult(null);
     setPortionValue(1);
-  };
-
-  const handleSaveSettings = async () => {
-    setIsSaving(true);
-    try {
-      if (editWeight !== bodyWeight) {
-        await updateBodyweight(editWeight);
-      }
-
-      updateProfile({
-        height: editHeight,
-        age: editAge,
-        gender: editGender,
-        activityLevel: editActivity,
-        goal: editGoal,
-      });
-
-      toast.success('Paramètres mis à jour !');
-      setIsSettingsOpen(false);
-    } catch {
-      toast.error('Erreur lors de la mise à jour');
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleSaveScannedMeal = async () => {
@@ -510,7 +447,7 @@ export default function NutritionPage() {
               <div className="flex items-center gap-1.5 text-blue-400">
                 <Target className="w-3 h-3" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
-                  Objectif : {goalLabels[nutritionProfile.goal].toUpperCase()}
+                  Objectif : {appProfile?.goal_program?.toUpperCase() || 'MAINTIEN'}
                 </span>
               </div>
             </div>
@@ -522,14 +459,6 @@ export default function NutritionPage() {
                 KCAL CIBLE
               </span>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsSettingsOpen(true)}
-              className="text-slate-400 hover:text-white rounded-full transition-colors"
-            >
-              <Settings className="w-5 h-5" />
-            </Button>
           </div>
         </header>
 
@@ -966,160 +895,6 @@ export default function NutritionPage() {
       <AnimatePresence mode="wait">
         {isScanningView ? renderScanner() : renderDashboard()}
       </AnimatePresence>
-
-      {/* DIALOG PARAMÈTRES (SETTINGS) */}
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="max-w-md rounded-[2rem] p-6 bg-white overflow-y-auto max-h-[90vh]">
-          <DialogHeader className="mb-4 text-left">
-            <DialogTitle className="text-xl font-black italic uppercase leading-tight text-slate-900 flex items-center gap-2">
-              <Settings className="w-5 h-5 text-blue-600 stroke-[3px]" /> Mes Paramètres
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
-                  <Scale className="w-3 h-3 text-blue-500" /> Poids (kg)
-                </Label>
-                <Input
-                  type="number"
-                  value={editWeight}
-                  onChange={(e) => setEditWeight(Number(e.target.value) || 0)}
-                  className="h-14 rounded-2xl text-xl font-black text-center bg-slate-50 border-slate-200"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
-                  <Activity className="w-3 h-3 text-emerald-500" /> Taille (cm)
-                </Label>
-                <Input
-                  type="number"
-                  value={editHeight}
-                  onChange={(e) => setEditHeight(Number(e.target.value) || 0)}
-                  className="h-14 rounded-2xl text-xl font-black text-center bg-slate-50 border-slate-200"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                  Âge
-                </Label>
-                <Input
-                  type="number"
-                  value={editAge}
-                  onChange={(e) => setEditAge(Number(e.target.value) || 0)}
-                  className="h-14 rounded-2xl text-xl font-black text-center bg-slate-50 border-slate-200"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                  Sexe
-                </Label>
-                <div className="flex gap-2">
-                  <Button
-                    variant={editGender === 'M' ? 'default' : 'outline'}
-                    onClick={() => setEditGender('M')}
-                    className={cn(
-                      'flex-1 h-14 rounded-2xl font-black text-lg',
-                      editGender === 'M'
-                        ? 'bg-blue-600 text-white'
-                        : 'text-slate-400 border-slate-200'
-                    )}
-                  >
-                    H
-                  </Button>
-                  <Button
-                    variant={editGender === 'F' ? 'default' : 'outline'}
-                    onClick={() => setEditGender('F')}
-                    className={cn(
-                      'flex-1 h-14 rounded-2xl font-black text-lg',
-                      editGender === 'F'
-                        ? 'bg-pink-500 hover:bg-pink-600 text-white border-pink-500'
-                        : 'text-slate-400 border-slate-200'
-                    )}
-                  >
-                    F
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <Separator className="bg-slate-100" />
-
-            <div className="space-y-3">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                Niveau d&apos;activité
-              </Label>
-              <div className="flex flex-col gap-2">
-                {[
-                  { val: 1.2, label: 'Sédentaire' },
-                  { val: 1.55, label: 'Modéré (1-3 séances/sem)' },
-                  { val: 1.75, label: 'Très Actif (4+ séances/sem)' },
-                ].map((act) => (
-                  <Button
-                    key={act.val}
-                    variant="outline"
-                    onClick={() => setEditActivity(act.val)}
-                    className={cn(
-                      'w-full justify-start h-12 rounded-xl font-black text-xs uppercase tracking-wider transition-all',
-                      Math.abs(editActivity - act.val) < 0.01
-                        ? 'bg-slate-800 text-white border-slate-800'
-                        : 'text-slate-500 border-slate-200'
-                    )}
-                  >
-                    {act.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <Separator className="bg-slate-100" />
-
-            <div className="space-y-3">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                Objectif Nutritionnel
-              </Label>
-              <div className="flex flex-col gap-2">
-                {(['cut', 'maintain', 'bulk'] as GoalType[]).map((g) => (
-                  <Button
-                    key={g}
-                    variant="outline"
-                    onClick={() => setEditGoal(g)}
-                    className={cn(
-                      'w-full justify-start h-14 rounded-xl font-black uppercase italic tracking-wider text-sm transition-all',
-                      editGoal === g
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
-                        : 'text-slate-500 border-slate-200'
-                    )}
-                  >
-                    <Target
-                      className={cn(
-                        'w-5 h-5 mr-3',
-                        editGoal === g ? 'text-blue-200' : 'text-slate-400'
-                      )}
-                    />
-                    {goalLabels[g]}
-                    {editGoal === g && (
-                      <Check className="ml-auto w-5 h-5 text-white stroke-[3px]" />
-                    )}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <Button
-              onClick={handleSaveSettings}
-              disabled={isSaving}
-              className="w-full h-16 mt-4 text-sm font-black italic uppercase rounded-2xl shadow-xl shadow-blue-500/20 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all"
-            >
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'ENREGISTRER'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* DIALOG DÉTAILS REPAS */}
       <Dialog open={!!selectedMeal} onOpenChange={(open) => !open && setSelectedMeal(null)}>

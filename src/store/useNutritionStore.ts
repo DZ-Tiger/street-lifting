@@ -26,16 +26,7 @@ export interface HistoryItem {
   estimatedWeightGrams?: number;
 }
 
-export interface UserNutritionProfile {
-  height: number;
-  age: number;
-  gender: GenderType;
-  activityLevel: number;
-  goal: GoalType;
-}
-
 interface NutritionState {
-  profile: UserNutritionProfile;
   meals: HistoryItem[];
   addMeal: (meal: HistoryItem) => void;
   removeMeal: (id: string) => void;
@@ -44,21 +35,11 @@ interface NutritionState {
     id: string,
     newMacros: { protein: number; carbs: number; fat: number }
   ) => void;
-  setGoal: (goal: GoalType) => void;
-  updateProfile: (profile: Partial<UserNutritionProfile>) => void;
 }
 
 export const useNutritionStore = create<NutritionState>()(
   persist(
     (set) => ({
-      // Profil nutrition par défaut (le poids vient du store global useStore)
-      profile: {
-        height: 180,
-        age: 25,
-        gender: 'M',
-        activityLevel: 1.55, // Modéré
-        goal: 'cut',
-      },
       meals: [],
 
       addMeal: (meal) =>
@@ -124,16 +105,6 @@ export const useNutritionStore = create<NutritionState>()(
             };
           }),
         })),
-
-      setGoal: (goal) =>
-        set((state) => ({
-          profile: { ...state.profile, goal },
-        })),
-
-      updateProfile: (updates) =>
-        set((state) => ({
-          profile: { ...state.profile, ...updates },
-        })),
     }),
     {
       name: 'street-flow-nutrition-storage',
@@ -144,11 +115,16 @@ export const useNutritionStore = create<NutritionState>()(
 /**
  * Logique Métier Professionnelle : Équation de Mifflin-St Jeor
  */
-export const calculateTargets = (nutritionProfile: UserNutritionProfile, bodyWeight: number) => {
-  const { height, age, gender, activityLevel, goal } = nutritionProfile;
-
+export const calculateTargets = (
+  height: number,
+  age: number,
+  gender: 'Homme' | 'Femme',
+  activityLevel: number,
+  goal: string,
+  bodyWeight: number
+) => {
   // 1. Calcul du BMR (Mifflin-St Jeor) basé sur le poids réel du profil global
-  const s = gender === 'M' ? 5 : -161;
+  const s = gender === 'Homme' ? 5 : -161;
   const bmr = 10 * bodyWeight + 6.25 * height - 5 * age + s;
 
   // 2. Calcul du TDEE
@@ -156,8 +132,10 @@ export const calculateTargets = (nutritionProfile: UserNutritionProfile, bodyWei
 
   // 3. Ajustement selon l'objectif calorique
   let targetCalories = tdee;
-  if (goal === 'cut') targetCalories -= 500;
-  if (goal === 'bulk') targetCalories += 300;
+  const goalLower = goal.toLowerCase();
+  if (goalLower.includes('sèche') || goalLower.includes('cut') || goalLower.includes('seche'))
+    targetCalories -= 500;
+  if (goalLower.includes('masse') || goalLower.includes('bulk')) targetCalories += 300;
 
   // 4. Répartition des Macros (Standard Musculation)
   const targetProtein = Math.round(bodyWeight * 2.0);
