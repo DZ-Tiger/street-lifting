@@ -10,6 +10,11 @@ export interface UserProfile {
   current_1rm_pullup: number;
   current_1rm_dips: number;
   current_1rm_squat: number;
+  onboarding_completed: boolean;
+  age?: number;
+  height?: number;
+  goal_program?: string;
+  gender?: 'Homme' | 'Femme';
 }
 
 export interface CompletedSession {
@@ -58,6 +63,17 @@ interface SupabaseState {
   ) => Promise<{ isPR: boolean; new1RM: number; logId: string }>;
   updateLogFeedback: (logId: string, rpe: number, form_tags: string[]) => Promise<void>;
   updateBodyweight: (bw: number) => Promise<void>;
+  completeOnboarding: (data: {
+    body_weight: number;
+    current_1rm_muscleup: number;
+    current_1rm_pullup: number;
+    current_1rm_dips: number;
+    current_1rm_squat: number;
+    age: number;
+    height: number;
+    goal_program: string;
+    gender: 'Homme' | 'Femme';
+  }) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -245,20 +261,25 @@ export const useStore = create<SupabaseState>((set, get) => ({
     } = await supabase.auth.getUser();
     if (!user) return set({ profile: null, loading: false });
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    // Tentative de récupération du profil (plusieurs essais car le trigger peut être lent)
+    let profileData = null;
+    let retries = 3;
 
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching profile:', error);
+    while (retries > 0 && !profileData) {
+      const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
+
+      if (data) {
+        profileData = data;
+      } else {
+        retries--;
+        if (retries > 0) await new Promise((res) => setTimeout(res, 500));
+      }
     }
 
-    if (data) {
-      set({ profile: data, loading: false });
+    if (profileData) {
+      set({ profile: profileData, loading: false });
     } else {
-      // Initialiser un profil si inexistant
+      // Si vraiment rien après les retours, on tente l'insertion manuelle
       const newProfile = {
         user_id: user.id,
         body_weight: 75,
@@ -266,9 +287,26 @@ export const useStore = create<SupabaseState>((set, get) => ({
         current_1rm_pullup: 115,
         current_1rm_dips: 135,
         current_1rm_squat: 140,
+        onboarding_completed: false,
       };
-      await supabase.from('profiles').insert(newProfile);
-      set({ profile: newProfile as UserProfile, loading: false });
+
+      const { data: insertedData, error: insertError } = await supabase
+        .from('profiles')
+        .insert(newProfile)
+        .select()
+        .single();
+
+      if (insertError) {
+        // Probablement déjà inséré entre temps
+        const { data: finalData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+        set({ profile: finalData as UserProfile, loading: false });
+      } else {
+        set({ profile: insertedData as UserProfile, loading: false });
+      }
     }
   },
 
@@ -391,6 +429,32 @@ export const useStore = create<SupabaseState>((set, get) => ({
     if (!error) {
       set({ profile: { ...profile, body_weight: bw } });
     }
+  },
+
+  completeOnboarding: async (data) => {
+    const { profile } = get();
+    if (!profile) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        ...data,
+        onboarding_completed: true,
+      })
+      .eq('user_id', profile.user_id);
+
+    if (error) {
+      console.error('Error completing onboarding:', error);
+      throw error;
+    }
+
+    set({
+      profile: {
+        ...profile,
+        ...data,
+        onboarding_completed: true,
+      },
+    });
   },
 
   signOut: async () => {

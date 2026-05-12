@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        router.push('/');
+      }
+    };
+    checkUser();
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,29 +49,11 @@ export default function LoginPage() {
     setLoading(false);
   };
 
-  const handleDevLogin = () => {
-    // This allows bypassing Supabase auth locally if needed by faking a session
-    // Or we just try to sign in with a known dev account
-    setEmail('dev@streetflow.com');
-    setPassword('dev123456');
-    toast.info("Identifiants dev remplis. Cliquez sur 'Se connecter' ou 'Créer un compte'.");
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md bg-white/80 backdrop-blur-md border-slate-100 shadow-2xl rounded-[2.5rem] overflow-hidden">
         <div className="bg-blue-600 h-2 w-full" />
         <CardHeader className="pt-10 pb-6 text-center relative">
-          <div className="absolute top-4 right-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDevLogin}
-              className="text-[10px] uppercase font-bold text-slate-400"
-            >
-              Dev Mode
-            </Button>
-          </div>
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
             <TrendingUp className="w-8 h-8 text-white" />
           </div>

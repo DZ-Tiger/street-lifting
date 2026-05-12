@@ -5,10 +5,15 @@ create extension if not exists "uuid-ossp";
 create table public.profiles (
   user_id uuid references auth.users on delete cascade primary key,
   body_weight real default 75,
+  age integer,
+  height integer,
+  goal_program text,
+  gender text,
   current_1rm_muscleup real default 90,
   current_1rm_pullup real default 115,
   current_1rm_dips real default 135,
   current_1rm_squat real default 140,
+  onboarding_completed boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
