@@ -30,8 +30,7 @@ import {
   HistoryItem,
   GenderType,
 } from '@/store/useNutritionStore';
-import { useStore } from '@/store/useStore';
-
+import { useStore, calculateAge } from '@/store/useStore';
 /* ─────────────────────── Utilities ─────────────────────── */
 
 const compressImage = (file: File): Promise<string> =>
