@@ -40,7 +40,10 @@ interface NutritionState {
   addMeal: (meal: HistoryItem) => void;
   removeMeal: (id: string) => void;
   updateMealPortion: (id: string, newPortion: number) => void;
-  updateMealMacros: (id: string, newMacros: { protein: number; carbs: number; fat: number }) => void;
+  updateMealMacros: (
+    id: string,
+    newMacros: { protein: number; carbs: number; fat: number }
+  ) => void;
   setGoal: (goal: GoalType) => void;
   updateProfile: (profile: Partial<UserNutritionProfile>) => void;
 }
@@ -102,10 +105,12 @@ export const useNutritionStore = create<NutritionState>()(
         set((state) => ({
           meals: state.meals.map((meal) => {
             if (meal.id !== id) return meal;
-            
+
             // Calcul des nouvelles calories basées sur les macros
-            const newBaseCalories = Math.round(newMacros.protein * 4 + newMacros.carbs * 4 + newMacros.fat * 9);
-            
+            const newBaseCalories = Math.round(
+              newMacros.protein * 4 + newMacros.carbs * 4 + newMacros.fat * 9
+            );
+
             return {
               ...meal,
               calories: Math.round(newBaseCalories * meal.portion),

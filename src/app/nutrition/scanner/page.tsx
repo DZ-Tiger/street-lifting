@@ -21,7 +21,7 @@ import {
   Activity,
   Scale,
   Pencil,
-  Save
+  Save,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -146,20 +146,17 @@ export default function NutritionPage() {
   const [editMacroFat, setEditMacroFat] = useState<number | ''>('');
   const [customGrams, setCustomGrams] = useState<number | ''>('');
 
-  useEffect(() => {
-    if (selectedMeal) {
-      setPortionMode('fraction');
-      setIsEditingMacros(false);
-      setEditMacroProt(selectedMeal.macros.protein);
-      setEditMacroCarbs(selectedMeal.macros.carbs);
-      setEditMacroFat(selectedMeal.macros.fat);
-      if (selectedMeal.estimatedWeightGrams) {
-        setCustomGrams(Math.round(selectedMeal.estimatedWeightGrams * selectedMeal.portion));
-      } else {
-        setCustomGrams('');
-      }
-    }
-  }, [selectedMeal?.id]);
+  const openMealDetails = (meal: HistoryItem) => {
+    setSelectedMeal(meal);
+    setPortionMode('fraction');
+    setIsEditingMacros(false);
+    setEditMacroProt(meal.macros.protein);
+    setEditMacroCarbs(meal.macros.carbs);
+    setEditMacroFat(meal.macros.fat);
+    setCustomGrams(
+      meal.estimatedWeightGrams ? Math.round(meal.estimatedWeightGrams * meal.portion) : ''
+    );
+  };
 
   // ÉTATS PARAMÈTRES (SETTINGS)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -421,7 +418,7 @@ export default function NutritionPage() {
     const newProt = Number(editMacroProt) || 0;
     const newCarbs = Number(editMacroCarbs) || 0;
     const newFat = Number(editMacroFat) || 0;
-    
+
     const newBaseProt = newProt / selectedMeal.portion;
     const newBaseCarbs = newCarbs / selectedMeal.portion;
     const newBaseFat = newFat / selectedMeal.portion;
@@ -429,11 +426,11 @@ export default function NutritionPage() {
     updateMealMacros(selectedMeal.id, {
       protein: newBaseProt,
       carbs: newBaseCarbs,
-      fat: newBaseFat
+      fat: newBaseFat,
     });
 
     setIsEditingMacros(false);
-    
+
     const newBaseCals = newBaseProt * 4 + newBaseCarbs * 4 + newBaseFat * 9;
     setSelectedMeal({
       ...selectedMeal,
@@ -444,7 +441,7 @@ export default function NutritionPage() {
         carbs: newCarbs,
         fat: newFat,
       },
-      calories: Math.round(newBaseCals * selectedMeal.portion)
+      calories: Math.round(newBaseCals * selectedMeal.portion),
     });
     toast.success('Macros mises à jour');
   };
@@ -456,11 +453,14 @@ export default function NutritionPage() {
     if (g > 0) {
       const newPortion = g / selectedMeal.estimatedWeightGrams;
       updateMealPortion(selectedMeal.id, newPortion);
-      
+
       const baseCals = selectedMeal.baseCalories ?? selectedMeal.calories / selectedMeal.portion;
-      const baseProt = selectedMeal.baseMacros?.protein ?? selectedMeal.macros.protein / selectedMeal.portion;
-      const baseCarbs = selectedMeal.baseMacros?.carbs ?? selectedMeal.macros.carbs / selectedMeal.portion;
-      const baseFat = selectedMeal.baseMacros?.fat ?? selectedMeal.macros.fat / selectedMeal.portion;
+      const baseProt =
+        selectedMeal.baseMacros?.protein ?? selectedMeal.macros.protein / selectedMeal.portion;
+      const baseCarbs =
+        selectedMeal.baseMacros?.carbs ?? selectedMeal.macros.carbs / selectedMeal.portion;
+      const baseFat =
+        selectedMeal.baseMacros?.fat ?? selectedMeal.macros.fat / selectedMeal.portion;
 
       setSelectedMeal({
         ...selectedMeal,
@@ -641,7 +641,7 @@ export default function NutritionPage() {
                 >
                   <Card
                     className="border-none shadow-sm rounded-2xl overflow-hidden bg-white cursor-pointer hover:bg-slate-50 transition-colors"
-                    onClick={() => setSelectedMeal(item)}
+                    onClick={() => openMealDetails(item)}
                   >
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex-1 min-w-0 pr-4">
@@ -1133,18 +1133,28 @@ export default function NutritionPage() {
                   >
                     {selectedMeal.time}
                   </Badge>
-                  
+
                   <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg">
                     <button
                       onClick={() => setPortionMode('fraction')}
-                      className={cn('px-2 py-1 text-[9px] font-black uppercase tracking-wider rounded-md transition-all', portionMode === 'fraction' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600')}
+                      className={cn(
+                        'px-2 py-1 text-[9px] font-black uppercase tracking-wider rounded-md transition-all',
+                        portionMode === 'fraction'
+                          ? 'bg-white shadow-sm text-blue-600'
+                          : 'text-slate-400 hover:text-slate-600'
+                      )}
                     >
                       Frac.
                     </button>
                     {selectedMeal.estimatedWeightGrams && (
                       <button
                         onClick={() => setPortionMode('grams')}
-                        className={cn('px-2 py-1 text-[9px] font-black uppercase tracking-wider rounded-md transition-all', portionMode === 'grams' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600')}
+                        className={cn(
+                          'px-2 py-1 text-[9px] font-black uppercase tracking-wider rounded-md transition-all',
+                          portionMode === 'grams'
+                            ? 'bg-white shadow-sm text-blue-600'
+                            : 'text-slate-400 hover:text-slate-600'
+                        )}
                       >
                         Grammes
                       </button>
@@ -1154,7 +1164,7 @@ export default function NutritionPage() {
                 <DialogTitle className="text-2xl font-black italic uppercase leading-tight text-slate-900">
                   {selectedMeal.mealName}
                 </DialogTitle>
-                
+
                 <div className="mt-3 flex items-center">
                   {portionMode === 'fraction' ? (
                     <Select
@@ -1164,10 +1174,17 @@ export default function NutritionPage() {
                         const newPortion = parseFloat(val);
                         updateMealPortion(selectedMeal.id, newPortion);
 
-                        const baseCals = selectedMeal.baseCalories ?? selectedMeal.calories / selectedMeal.portion;
-                        const baseProt = selectedMeal.baseMacros?.protein ?? selectedMeal.macros.protein / selectedMeal.portion;
-                        const baseCarbs = selectedMeal.baseMacros?.carbs ?? selectedMeal.macros.carbs / selectedMeal.portion;
-                        const baseFat = selectedMeal.baseMacros?.fat ?? selectedMeal.macros.fat / selectedMeal.portion;
+                        const baseCals =
+                          selectedMeal.baseCalories ?? selectedMeal.calories / selectedMeal.portion;
+                        const baseProt =
+                          selectedMeal.baseMacros?.protein ??
+                          selectedMeal.macros.protein / selectedMeal.portion;
+                        const baseCarbs =
+                          selectedMeal.baseMacros?.carbs ??
+                          selectedMeal.macros.carbs / selectedMeal.portion;
+                        const baseFat =
+                          selectedMeal.baseMacros?.fat ??
+                          selectedMeal.macros.fat / selectedMeal.portion;
 
                         setSelectedMeal({
                           ...selectedMeal,
@@ -1207,15 +1224,17 @@ export default function NutritionPage() {
                     </Select>
                   ) : (
                     <div className="flex items-center gap-2 w-1/2">
-                      <Input 
-                        type="number" 
-                        inputMode="decimal" 
-                        value={customGrams} 
-                        onChange={(e) => handleCustomGramsChange(e.target.value)} 
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={customGrams}
+                        onChange={(e) => handleCustomGramsChange(e.target.value)}
                         placeholder="Ex: 150"
                         className="h-8 text-sm font-black rounded-xl bg-slate-50 border-slate-200 text-center"
                       />
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Grammes</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Grammes
+                      </span>
                     </div>
                   )}
                 </div>
@@ -1250,13 +1269,27 @@ export default function NutritionPage() {
                       className="h-6 text-[10px] text-blue-500 hover:text-blue-600 hover:bg-blue-50 font-bold uppercase tracking-wider px-2 gap-1 rounded-lg"
                       onClick={() => setIsEditingMacros(!isEditingMacros)}
                     >
-                      {isEditingMacros ? 'Annuler' : <><Pencil className="w-3 h-3" /> Modifier</>}
+                      {isEditingMacros ? (
+                        'Annuler'
+                      ) : (
+                        <>
+                          <Pencil className="w-3 h-3" /> Modifier
+                        </>
+                      )}
                     </Button>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100/50 flex flex-col items-center">
                       {isEditingMacros ? (
-                        <Input type="number" inputMode="decimal" value={editMacroProt} onChange={(e) => setEditMacroProt(e.target.value === '' ? '' : Number(e.target.value))} className="h-8 w-full text-center font-black text-blue-600 p-1 mb-1 border-blue-200" />
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          value={editMacroProt}
+                          onChange={(e) =>
+                            setEditMacroProt(e.target.value === '' ? '' : Number(e.target.value))
+                          }
+                          className="h-8 w-full text-center font-black text-blue-600 p-1 mb-1 border-blue-200"
+                        />
                       ) : (
                         <span className="text-blue-600 font-black text-xl italic block text-center">
                           {selectedMeal.macros.protein}g
@@ -1268,7 +1301,15 @@ export default function NutritionPage() {
                     </div>
                     <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100/50 flex flex-col items-center">
                       {isEditingMacros ? (
-                        <Input type="number" inputMode="decimal" value={editMacroCarbs} onChange={(e) => setEditMacroCarbs(e.target.value === '' ? '' : Number(e.target.value))} className="h-8 w-full text-center font-black text-emerald-600 p-1 mb-1 border-emerald-200" />
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          value={editMacroCarbs}
+                          onChange={(e) =>
+                            setEditMacroCarbs(e.target.value === '' ? '' : Number(e.target.value))
+                          }
+                          className="h-8 w-full text-center font-black text-emerald-600 p-1 mb-1 border-emerald-200"
+                        />
                       ) : (
                         <span className="text-emerald-600 font-black text-xl italic block text-center">
                           {selectedMeal.macros.carbs}g
@@ -1280,7 +1321,15 @@ export default function NutritionPage() {
                     </div>
                     <div className="bg-orange-50 p-3 rounded-2xl border border-orange-100/50 flex flex-col items-center">
                       {isEditingMacros ? (
-                        <Input type="number" inputMode="decimal" value={editMacroFat} onChange={(e) => setEditMacroFat(e.target.value === '' ? '' : Number(e.target.value))} className="h-8 w-full text-center font-black text-orange-500 p-1 mb-1 border-orange-200" />
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          value={editMacroFat}
+                          onChange={(e) =>
+                            setEditMacroFat(e.target.value === '' ? '' : Number(e.target.value))
+                          }
+                          className="h-8 w-full text-center font-black text-orange-500 p-1 mb-1 border-orange-200"
+                        />
                       ) : (
                         <span className="text-orange-500 font-black text-xl italic block text-center">
                           {selectedMeal.macros.fat}g
@@ -1292,8 +1341,11 @@ export default function NutritionPage() {
                     </div>
                   </div>
                   {isEditingMacros && (
-                    <Button onClick={handleSaveMacros} className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 font-black text-xs uppercase italic tracking-wider gap-2">
-                       <Save className="w-4 h-4" /> Enregistrer les macros
+                    <Button
+                      onClick={handleSaveMacros}
+                      className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 font-black text-xs uppercase italic tracking-wider gap-2"
+                    >
+                      <Save className="w-4 h-4" /> Enregistrer les macros
                     </Button>
                   )}
                 </div>
