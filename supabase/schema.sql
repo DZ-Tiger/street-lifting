@@ -87,7 +87,14 @@ create trigger on_auth_user_created
   fat real not null,
   micros jsonb,
   image_url text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint nutrition_logs_image_url_http_only check (
+    image_url is null
+    or (
+      image_url !~* '^data:'
+      and image_url ~* '^https?://'
+    )
+  )
   );
 
   -- Enable RLS for Nutrition Logs
