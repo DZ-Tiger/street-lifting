@@ -57,7 +57,7 @@ function AccountSettingsForm({ onClose }: AccountSettingsFormProps) {
     getAccount()
       .then((snapshot) => {
         if (cancelled) return;
-        setAccount(snapshot ?? { email: null, name: '', avatarUrl: null });
+        setAccount(snapshot ?? { email: null, name: '', avatarUrl: null, isOAuth: false });
         setName(snapshot?.name ?? '');
         setEmail(snapshot?.email ?? '');
         setAvatarPreview(snapshot?.avatarUrl ?? null);
@@ -281,7 +281,8 @@ function AccountSettingsForm({ onClose }: AccountSettingsFormProps) {
                   />
                 </div>
                 <p className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                  Leave blank to keep your current password. Minimum {PASSWORD_MIN_LENGTH} characters.
+                  Leave blank to keep your current password. Minimum {PASSWORD_MIN_LENGTH}{' '}
+                  characters.
                 </p>
               </div>
             )}

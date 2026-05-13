@@ -331,11 +331,7 @@ const LoginScreen = ({
           <Divider>or continue with</Divider>
           <div className="grid grid-cols-2 gap-2 mt-3">
             <ProviderButton icon={<AppleGlyph />} label="Apple" />
-            <ProviderButton
-              icon={<GoogleGlyph />}
-              label="Google"
-              onClick={onGoogleLogin}
-            />
+            <ProviderButton icon={<GoogleGlyph />} label="Google" onClick={onGoogleLogin} />
           </div>
         </div>
 

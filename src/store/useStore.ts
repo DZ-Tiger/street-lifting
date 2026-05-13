@@ -390,7 +390,12 @@ export const useStore = create<SupabaseState>((set, get) => ({
     const providers = (user.app_metadata?.providers ?? []) as string[];
     return {
       email: user.email ?? null,
-      name: typeof metadata.full_name === 'string' ? metadata.full_name : typeof metadata.name === 'string' ? metadata.name : '',
+      name:
+        typeof metadata.full_name === 'string'
+          ? metadata.full_name
+          : typeof metadata.name === 'string'
+            ? metadata.name
+            : '',
       avatarUrl: typeof metadata.avatar_url === 'string' ? metadata.avatar_url : null,
       isOAuth: providers.length > 0 && !providers.includes('email'),
     };
