@@ -19,6 +19,7 @@ import {
   Flame,
   Settings2 as SettingsIcon,
   Image as ImageIcon,
+  Wand2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -351,11 +352,11 @@ const MealRow = ({
               onDelete(meal.id);
             }
           }}
-          className="ml-2 h-11 w-11 inline-flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 hover:opacity-70 transition cursor-pointer"
-          style={{ color: PALETTE.muted }}
+          className="ml-3 h-10 w-10 inline-flex items-center justify-center rounded-xl border active:scale-95 transition cursor-pointer"
+          style={{ color: PALETTE.muted, borderColor: PALETTE.border, background: PALETTE.surface }}
           aria-label="Delete meal"
         >
-          <Trash2 size={15} />
+          <Trash2 size={14} />
         </span>
       </div>
     </div>
@@ -1152,6 +1153,34 @@ const ManualSheet = ({
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
+  const [isAIFilling, setIsAIFilling] = useState(false);
+
+  const handleAIFill = async () => {
+    if (!name.trim()) {
+      toast.error('Please enter a meal name first.');
+      return;
+    }
+    setIsAIFilling(true);
+    try {
+      const res = await fetch('/api/nutrition/guess', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mealName: name }),
+      });
+      if (!res.ok) throw new Error('Failed to guess macros');
+      const data = await res.json();
+      setCalories(String(data.calories));
+      setProtein(String(data.macros.protein));
+      setCarbs(String(data.macros.carbs));
+      setFat(String(data.macros.fat));
+      toast.success('Macros estimated by AI!');
+    } catch (error) {
+      console.error('AI fill error', error);
+      toast.error('Could not estimate macros.');
+    } finally {
+      setIsAIFilling(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -1202,7 +1231,19 @@ const ManualSheet = ({
 
         <div className="px-5 py-5 space-y-4">
           <div>
-            <NL className="block mb-1.5">Meal name</NL>
+            <div className="flex items-center justify-between mb-1.5">
+              <NL className="block">Meal name</NL>
+              <button
+                type="button"
+                onClick={handleAIFill}
+                disabled={isAIFilling || !name.trim()}
+                className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-medium transition disabled:opacity-50 hover:opacity-80"
+                style={{ color: PALETTE.fg }}
+              >
+                {isAIFilling ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                Auto-fill
+              </button>
+            </div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -1294,9 +1335,16 @@ async function lookupBarcode(barcode: string): Promise<NutritionResponse | null>
 
 /* ─────────────────────── BarcodeReaderView ─────────────────────── */
 
-const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => void }) => {
+const BarcodeReaderView = ({
+  onDetected,
+  isActive,
+}: {
+  onDetected: (barcode: string) => void;
+  isActive: boolean;
+}) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const onDetectedRef = React.useRef(onDetected);
+  const isActiveRef = React.useRef(isActive);
   const [permState, setPermState] = React.useState<
     'checking' | 'granted' | 'denied' | 'unavailable'
   >('checking');
@@ -1304,13 +1352,21 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
 
   React.useEffect(() => {
     onDetectedRef.current = onDetected;
-  });
+    isActiveRef.current = isActive;
+  }, [onDetected, isActive]);
 
   React.useEffect(() => {
     if (!videoRef.current) return;
     let stopped = false;
     let stream: MediaStream | null = null;
     let stopReader: (() => void) | null = null;
+
+    // Suppress internal ZXing warning spam
+    const originalWarn = console.warn;
+    console.warn = (...args) => {
+      if (typeof args[0] === 'string' && args[0].includes('non-ReaderException')) return;
+      originalWarn(...args);
+    };
 
     const start = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -1343,11 +1399,22 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
         }
         const reader = new BrowserMultiFormatReader();
         reader
-          .decodeFromStream(stream!, videoRef.current!, (result, _err, controls) => {
-            if (result && !stopped) {
+          .decodeFromStream(stream!, videoRef.current!, (result, err, controls) => {
+            if (result && !stopped && isActiveRef.current) {
               stopped = true;
               controls.stop();
               onDetectedRef.current(result.getText());
+            }
+            if (err) {
+              if (
+                err.name === 'NotFoundException' ||
+                err.name === 'ChecksumException' ||
+                err.name === 'FormatException'
+              ) {
+                // Expected background scanning noise, do nothing
+              } else {
+                console.error(err);
+              }
             }
             if (!stopReader) stopReader = () => controls.stop();
           })
@@ -1370,18 +1437,16 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
       stopped = true;
       stopReader?.();
       stream?.getTracks().forEach((t) => t.stop());
+      console.warn = originalWarn;
     };
   }, [retryCount]);
 
   if (permState === 'denied') {
     return (
-      <div
-        className="relative w-full rounded-[28px] overflow-hidden flex flex-col items-center justify-center gap-5 px-8 text-center"
-        style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
-      >
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-8 text-center bg-black/90">
         <Camera size={36} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.3)' }} />
         <p className="text-[12px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
-          Camera access is required to scan barcodes.
+          Camera access is required to scan.
           <br />
           Enable it in your browser or device settings.
         </p>
@@ -1402,10 +1467,7 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
 
   if (permState === 'unavailable') {
     return (
-      <div
-        className="relative w-full rounded-[28px] overflow-hidden flex flex-col items-center justify-center gap-4 px-8 text-center"
-        style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
-      >
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center bg-black/90">
         <Camera size={36} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.2)' }} />
         <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
           Camera unavailable on this device.
@@ -1415,10 +1477,7 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
   }
 
   return (
-    <div
-      className="relative w-full rounded-[28px] overflow-hidden"
-      style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
-    >
+    <div className="absolute inset-0 bg-black">
       <video
         ref={videoRef}
         className="absolute inset-0 w-full h-full object-cover"
@@ -1426,7 +1485,7 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
         muted
       />
       {permState === 'checking' && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
           <Loader2
             size={24}
             strokeWidth={1.5}
@@ -1435,18 +1494,6 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
           />
         </div>
       )}
-      <div className="absolute inset-4 text-white/80">
-        <CornerBracket position="tl" />
-        <CornerBracket position="tr" />
-        <CornerBracket position="bl" />
-        <CornerBracket position="br" />
-      </div>
-      <div className="absolute bottom-4 left-0 right-0 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
-          <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-          <NL className="text-white/80 text-[9px] tracking-[0.22em]">Point at a barcode</NL>
-        </div>
-      </div>
     </div>
   );
 };
@@ -1454,10 +1501,9 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
 /* ─────────────────────── Main Page ─────────────────────── */
 
 type ViewType = 'dashboard' | 'scanner' | 'analyzing' | 'result' | 'detail';
-type ScanMode = 'ai' | 'gallery' | 'barcode';
+type ScanMode = 'ai' | 'barcode';
 
 const SCAN_TABS: { k: ScanMode; l: string }[] = [
-  { k: 'gallery', l: 'Gallery' },
   { k: 'ai', l: 'AI scan' },
   { k: 'barcode', l: 'Barcode' },
 ];
@@ -1945,92 +1991,80 @@ export function NutritionScreen({
   );
 
   const renderScanner = () => (
-    <div className="absolute inset-0 flex flex-col" style={{ background: PALETTE.carbon }}>
-      <div className="flex items-center justify-between px-5 pt-3 pb-4">
+    <div className="absolute inset-0 overflow-hidden" style={{ background: PALETTE.carbon }}>
+      {/* Full-bleed camera background */}
+      <BarcodeReaderView onDetected={handleBarcodeDetected} isActive={scanMode === 'barcode'} />
+
+      {/* Top Bar Overlay */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-5 pt-3 pb-4 z-10 bg-gradient-to-b from-black/50 to-transparent">
         <button
           type="button"
           aria-label="Back"
           onClick={() => changeView('dashboard')}
-          className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
+          className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition backdrop-blur-md"
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
         </button>
-        <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">
+        <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white drop-shadow-md">
           Scanner
         </div>
-        <button
-          type="button"
-          aria-label="Open camera"
-          onClick={() => {
-            setScanMode('ai');
-            fileInputRef.current?.click();
-          }}
-          className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
-        >
-          <Camera size={18} />
-        </button>
+        <div className="h-11 w-11 -mr-2" />
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-6">
-        {scanMode === 'barcode' ? (
-          <BarcodeReaderView onDetected={handleBarcodeDetected} />
-        ) : (
-          <div
-            className="relative w-full rounded-[28px] overflow-hidden"
-            style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
-          >
+      {/* Viewfinder Overlays */}
+      <div
+        className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10"
+        style={{ paddingTop: '60px', paddingBottom: '160px' }}
+      >
+        <div className="relative w-[80%] max-w-[320px] aspect-square">
+          {scanMode === 'ai' && (
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 opacity-50"
               style={{
                 backgroundImage:
-                  'repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 8px, transparent 8px 16px)',
+                  'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0 8px, transparent 8px 16px)',
               }}
             />
-            <div className="absolute inset-0 flex">
-              <div className="flex-1 border-r border-white/5" />
-              <div className="flex-1 border-r border-white/5" />
-              <div className="flex-1" />
+          )}
+          <div className="absolute inset-0 text-white/80 drop-shadow-md">
+            <CornerBracket position="tl" />
+            <CornerBracket position="tr" />
+            <CornerBracket position="bl" />
+            <CornerBracket position="br" />
+          </div>
+          {scanMode === 'ai' && (
+            <div className="absolute inset-0 flex items-center justify-center opacity-80">
+              <div className="h-px w-3 bg-white/60 drop-shadow-md" />
+              <div className="absolute h-3 w-px bg-white/60 drop-shadow-md" />
+              <div className="absolute h-10 w-10 rounded-full border border-white/30 drop-shadow-md" />
             </div>
-            <div className="absolute inset-0 flex flex-col">
-              <div className="flex-1 border-b border-white/5" />
-              <div className="flex-1 border-b border-white/5" />
-              <div className="flex-1" />
-            </div>
-            <div className="absolute inset-4 text-white/80">
-              <CornerBracket position="tl" />
-              <CornerBracket position="tr" />
-              <CornerBracket position="bl" />
-              <CornerBracket position="br" />
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-px w-3 bg-white/40" />
-              <div className="absolute h-3 w-px bg-white/40" />
-              <div className="absolute h-10 w-10 rounded-full border border-white/15" />
-            </div>
-            <div className="absolute bottom-4 left-0 right-0 text-center">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+          )}
+          {scanMode === 'barcode' && (
+            <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10 backdrop-blur-md">
                 <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                <NL className="text-white/80 text-[9px] tracking-[0.22em]">
-                  {scanMode === 'gallery' ? 'Select from gallery' : 'Frame the dish'}
-                </NL>
+                <NL className="text-white/80 text-[9px] tracking-[0.22em]">Auto-scanning</NL>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <div className="px-6 pt-4" style={{ paddingBottom: 'calc(var(--safe-bottom) + 2.5rem)' }}>
-        <div className="flex items-center justify-center gap-6 mb-6">
+      {/* Bottom Controls Overlay */}
+      <div
+        className="absolute bottom-0 left-0 right-0 px-6 pt-12 pb-10 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
+        style={{ paddingBottom: 'calc(var(--safe-bottom) + 2.5rem)' }}
+      >
+        <div className="flex items-center justify-center gap-8 mb-6">
           {SCAN_TABS.map(({ k, l }) => (
             <button
               key={k}
               type="button"
               onClick={() => setScanMode(k)}
-              className="min-h-[44px] px-2 transition active:opacity-60"
+              className="px-2 py-2 transition active:opacity-60"
             >
               <NL
-                className={`tracking-[0.22em] transition ${scanMode === k ? '' : 'opacity-40'}`}
-                style={{ color: 'white' }}
+                className={`tracking-[0.22em] transition drop-shadow-md ${scanMode === k ? 'text-white' : 'text-white/40'}`}
               >
                 {l}
               </NL>
@@ -2042,7 +2076,6 @@ export function NutritionScreen({
             type="button"
             aria-label="Open gallery"
             onClick={() => {
-              setScanMode('gallery');
               galleryInputRef.current?.click();
             }}
             className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
@@ -2055,30 +2088,18 @@ export function NutritionScreen({
             disabled={scanMode === 'barcode'}
             onClick={() => {
               if (scanMode === 'ai') fileInputRef.current?.click();
-              else if (scanMode === 'gallery') galleryInputRef.current?.click();
             }}
-            className="relative h-20 w-20 rounded-full border-2 border-white/80 flex items-center justify-center active:scale-95 transition disabled:opacity-40"
+            className="relative h-[76px] w-[76px] rounded-full border-[3px] border-white/80 flex items-center justify-center active:scale-95 transition disabled:opacity-50"
           >
             {scanMode === 'barcode' ? (
-              <span className="h-[60px] w-[60px] rounded-full border-2 border-white/40 flex items-center justify-center">
-                <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+              <span className="h-[60px] w-[60px] rounded-full border-2 border-white/40 flex items-center justify-center backdrop-blur-sm">
+                <span className="h-2.5 w-2.5 rounded-full bg-white animate-pulse" />
               </span>
             ) : (
               <span className="h-[60px] w-[60px] rounded-full bg-white" />
             )}
           </button>
-          <button
-            type="button"
-            aria-label="Reset"
-            onClick={() => {
-              setImage(null);
-              setScanResult(null);
-              setScanMode('ai');
-            }}
-            className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
-          >
-            <RotateCcw size={18} />
-          </button>
+          <div className="h-12 w-12" />
         </div>
       </div>
 
