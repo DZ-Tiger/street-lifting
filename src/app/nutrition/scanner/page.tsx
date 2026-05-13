@@ -1256,9 +1256,191 @@ const ManualSheet = ({
   );
 };
 
+/* ─────────────────────── Barcode Lookup ─────────────────────── */
+
+async function lookupBarcode(barcode: string): Promise<NutritionResponse | null> {
+  try {
+    const res = await fetch(
+      `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(barcode)}.json`
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      status: number;
+      product?: {
+        product_name?: string;
+        nutriments?: Record<string, unknown>;
+      };
+    };
+    if (data.status !== 1 || !data.product) return null;
+    const p = data.product;
+    const n = (p.nutriments ?? {}) as Record<string, number>;
+    const kcal =
+      n['energy-kcal_100g'] ??
+      n['energy-kcal'] ??
+      Math.round((n['energy_100g'] ?? 0) / 4.184);
+    return {
+      mealName: p.product_name || `Barcode ${barcode}`,
+      calories: Math.round(Number(kcal) || 0),
+      macros: {
+        protein: Math.round(Number(n['proteins_100g']) || 0),
+        carbs: Math.round(Number(n['carbohydrates_100g']) || 0),
+        fat: Math.round(Number(n['fat_100g']) || 0),
+      },
+      micros: [],
+      estimatedWeightGrams: 100,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* ─────────────────────── BarcodeReaderView ─────────────────────── */
+
+const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => void }) => {
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const onDetectedRef = React.useRef(onDetected);
+  const [permState, setPermState] = React.useState<'checking' | 'granted' | 'denied' | 'unavailable'>('checking');
+  const [retryCount, setRetryCount] = React.useState(0);
+
+  React.useEffect(() => {
+    onDetectedRef.current = onDetected;
+  });
+
+  React.useEffect(() => {
+    setPermState('checking');
+    if (!videoRef.current) return;
+    let stopped = false;
+    let stream: MediaStream | null = null;
+    let stopReader: (() => void) | null = null;
+
+    const start = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setPermState('unavailable');
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+        });
+        if (stopped) { stream.getTracks().forEach((t) => t.stop()); return; }
+        setPermState('granted');
+      } catch (err) {
+        if (stopped) return;
+        const name = err instanceof Error ? err.name : '';
+        setPermState(name === 'NotAllowedError' || name === 'PermissionDeniedError' ? 'denied' : 'unavailable');
+        return;
+      }
+
+      try {
+        const { BrowserMultiFormatReader } = await import('@zxing/browser');
+        if (stopped) { stream?.getTracks().forEach((t) => t.stop()); return; }
+        const reader = new BrowserMultiFormatReader();
+        reader
+          .decodeFromStream(stream!, videoRef.current!, (result, _err, controls) => {
+            if (result && !stopped) {
+              stopped = true;
+              controls.stop();
+              onDetectedRef.current(result.getText());
+            }
+            if (!stopReader) stopReader = () => controls.stop();
+          })
+          .then((controls) => {
+            if (!stopReader) stopReader = () => controls.stop();
+            if (stopped) controls.stop();
+          })
+          .catch(() => {
+            if (!stopped) setPermState('unavailable');
+          });
+      } catch {
+        if (!stopped) setPermState('unavailable');
+        stream?.getTracks().forEach((t) => t.stop());
+      }
+    };
+
+    start();
+
+    return () => {
+      stopped = true;
+      stopReader?.();
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [retryCount]);
+
+  if (permState === 'denied') {
+    return (
+      <div
+        className="relative w-full rounded-[28px] overflow-hidden flex flex-col items-center justify-center gap-5 px-8 text-center"
+        style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
+      >
+        <Camera size={36} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.3)' }} />
+        <p className="text-[12px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          Camera access is required to scan barcodes.
+          <br />
+          Enable it in your browser or device settings.
+        </p>
+        <button
+          type="button"
+          onClick={() => setRetryCount((c) => c + 1)}
+          className="px-5 py-2.5 rounded-full border border-white/20 text-[11px] uppercase tracking-[0.2em] hover:bg-white/5 transition"
+          style={{ color: 'rgba(255,255,255,0.7)' }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (permState === 'unavailable') {
+    return (
+      <div
+        className="relative w-full rounded-[28px] overflow-hidden flex flex-col items-center justify-center gap-4 px-8 text-center"
+        style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
+      >
+        <Camera size={36} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.2)' }} />
+        <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          Camera unavailable on this device.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="relative w-full rounded-[28px] overflow-hidden"
+      style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
+    >
+      <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
+      {permState === 'checking' && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 size={24} strokeWidth={1.5} className="animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
+        </div>
+      )}
+      <div className="absolute inset-4 text-white/80">
+        <CornerBracket position="tl" />
+        <CornerBracket position="tr" />
+        <CornerBracket position="bl" />
+        <CornerBracket position="br" />
+      </div>
+      <div className="absolute bottom-4 left-0 right-0 text-center">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+          <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+          <NL className="text-white/80 text-[9px] tracking-[0.22em]">Point at a barcode</NL>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* ─────────────────────── Main Page ─────────────────────── */
 
 type ViewType = 'dashboard' | 'scanner' | 'analyzing' | 'result' | 'detail';
+type ScanMode = 'ai' | 'gallery' | 'barcode';
+
+const SCAN_TABS: { k: ScanMode; l: string }[] = [
+  { k: 'gallery', l: 'Gallery' },
+  { k: 'ai', l: 'AI scan' },
+  { k: 'barcode', l: 'Barcode' },
+];
 
 export interface NutritionScreenProps {
   /** Called when the user taps the dashboard back button. Defaults to router.back(). */
@@ -1270,16 +1452,20 @@ export interface NutritionScreenProps {
   bottomInset?: number;
   /** Hides the dashboard back button entirely (use when navigation is handled outside). */
   hideBackButton?: boolean;
+  /** Notifies the parent whenever the internal view changes (useful for hiding BottomNav). */
+  onViewChange?: (view: string) => void;
 }
 
 export function NutritionScreen({
   onBack,
   bottomInset = 0,
   hideBackButton = false,
+  onViewChange,
 }: NutritionScreenProps = {}) {
   useSkin();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const handleBack = onBack ?? (() => router.back());
 
@@ -1297,9 +1483,15 @@ export function NutritionScreen({
     [appProfile]
   );
 
-  const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros } = useNutritionStore();
+  const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros, fetchMeals } = useNutritionStore();
 
   const isHydrated = useIsHydrated();
+
+  useEffect(() => {
+    if (appProfile?.user_id) {
+      fetchMeals(appProfile.user_id);
+    }
+  }, [appProfile?.user_id, fetchMeals]);
 
   const [view, setView] = useState<ViewType>('dashboard');
   const [image, setImage] = useState<string | null>(null);
@@ -1308,6 +1500,35 @@ export function NutritionScreen({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [scanMode, setScanMode] = useState<ScanMode>('ai');
+
+  const changeView = (newView: ViewType) => {
+    setView(newView);
+    onViewChange?.(newView);
+  };
+
+  const handleBarcodeDetected = async (barcode: string) => {
+    changeView('analyzing');
+    try {
+      const result = await lookupBarcode(barcode);
+      if (!result) {
+        toast.error('Product not found in database.');
+        changeView('scanner');
+        return;
+      }
+      setScanResult(result);
+      setImage(null);
+      changeView('result');
+    } catch {
+      toast.error('Barcode lookup failed.');
+      changeView('scanner');
+    }
+  };
+
+  const todayMeals = useMemo(() => {
+    const today = new Date().toDateString();
+    return meals.filter((m) => new Date(m.timestamp).toDateString() === today);
+  }, [meals]);
 
   const targets = useMemo(
     () =>
@@ -1324,7 +1545,7 @@ export function NutritionScreen({
 
   const totals = useMemo(
     () =>
-      meals.reduce(
+      todayMeals.reduce(
         (acc, meal) => ({
           calories: acc.calories + meal.calories,
           protein: acc.protein + meal.macros.protein,
@@ -1333,7 +1554,7 @@ export function NutritionScreen({
         }),
         { calories: 0, protein: 0, carbs: 0, fat: 0 }
       ),
-    [meals]
+    [todayMeals]
   );
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1343,7 +1564,7 @@ export function NutritionScreen({
       const compressed = await compressImage(file);
       setImage(compressed);
       setScanResult(null);
-      setView('analyzing');
+      changeView('analyzing');
       const response = await fetch('/api/nutrition/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1352,12 +1573,12 @@ export function NutritionScreen({
       if (!response.ok) throw new Error('Scan request failed');
       const data: NutritionResponse = await response.json();
       setScanResult(data);
-      setView('result');
+      changeView('result');
     } catch (error) {
       console.error('Scan capture failed', error);
       toast.error('The AI could not analyze this image.');
       setImage(null);
-      setView('scanner');
+      changeView('scanner');
     }
   };
 
@@ -1385,23 +1606,27 @@ export function NutritionScreen({
         router.push('/login');
         return;
       }
-      await supabase.from('nutrition_logs').insert({
-        user_id: user.id,
-        meal_name: scanResult.mealName,
-        calories: finalCalories,
-        protein: finalProtein,
-        carbs: finalCarbs,
-        fat: finalFat,
-        micros: scanResult.micros,
-        image_url: image,
-      });
-
-      const now = new Date();
+      const { data: insertLog } = await supabase
+        .from('nutrition_logs')
+        .insert({
+          user_id: user.id,
+          meal_name: scanResult.mealName,
+          calories: finalCalories,
+          protein: finalProtein,
+          carbs: finalCarbs,
+          fat: finalFat,
+          micros: scanResult.micros,
+          image_url: image,
+        })
+        .select('id, created_at')
+        .single();
+      const log = insertLog as { id: string; created_at: string } | null;
+      const now = log?.created_at ? new Date(log.created_at) : new Date();
       const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       addMeal({
-        id: Math.random().toString(36).substring(2, 9),
+        id: log?.id ?? Math.random().toString(36).substring(2, 9),
         time: timeStr,
-        timestamp: Date.now(),
+        timestamp: now.getTime(),
         mealName: scanResult.mealName,
         calories: finalCalories,
         macros: { protein: finalProtein, carbs: finalCarbs, fat: finalFat },
@@ -1414,7 +1639,7 @@ export function NutritionScreen({
       toast.success('Meal saved.');
       setImage(null);
       setScanResult(null);
-      setView('dashboard');
+      changeView('dashboard');
     } catch (error) {
       console.error('Meal save failed', error);
       toast.error('Save failed.');
@@ -1469,23 +1694,27 @@ export function NutritionScreen({
         router.push('/login');
         return;
       }
-      await supabase.from('nutrition_logs').insert({
-        user_id: user.id,
-        meal_name: data.name,
-        calories: data.calories,
-        protein: data.protein,
-        carbs: data.carbs,
-        fat: data.fat,
-        micros: [],
-        image_url: null,
-      });
-
-      const now = new Date();
+      const { data: insertLog } = await supabase
+        .from('nutrition_logs')
+        .insert({
+          user_id: user.id,
+          meal_name: data.name,
+          calories: data.calories,
+          protein: data.protein,
+          carbs: data.carbs,
+          fat: data.fat,
+          micros: [],
+          image_url: null,
+        })
+        .select('id, created_at')
+        .single();
+      const log = insertLog as { id: string; created_at: string } | null;
+      const now = log?.created_at ? new Date(log.created_at) : new Date();
       const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       addMeal({
-        id: Math.random().toString(36).substring(2, 9),
+        id: log?.id ?? Math.random().toString(36).substring(2, 9),
         time: timeStr,
-        timestamp: Date.now(),
+        timestamp: now.getTime(),
         mealName: data.name,
         calories: data.calories,
         macros: { protein: data.protein, carbs: data.carbs, fat: data.fat },
@@ -1509,7 +1738,7 @@ export function NutritionScreen({
 
   const openMealDetail = (meal: HistoryItem) => {
     setSelectedMeal(meal);
-    setView('detail');
+    changeView('detail');
   };
 
   if (!isHydrated) return null;
@@ -1547,7 +1776,7 @@ export function NutritionScreen({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-36">
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: `${bottomInset + 160}px` }}>
         <div className="px-5 mb-4 flex items-center justify-between">
           <div>
             <div className="text-[20px] font-medium leading-tight" style={{ color: PALETTE.fg }}>
@@ -1585,7 +1814,7 @@ export function NutritionScreen({
           style={{ borderColor: PALETTE.border }}
         >
           {[
-            { l: 'Meals', v: meals.length, s: 'logged' },
+            { l: 'Meals', v: todayMeals.length, s: 'logged' },
             { l: 'Remaining', v: Math.max(0, targets.targetCalories - totals.calories), s: 'kcal' },
           ].map((s, i) => (
             <div
@@ -1637,19 +1866,19 @@ export function NutritionScreen({
           <div className="flex items-center justify-between mb-2">
             <NL>Today&apos;s log</NL>
             <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-              {meals.length} entries
+              {todayMeals.length} entries
             </NN>
           </div>
           <div
             className="border rounded-2xl overflow-hidden"
             style={{ borderColor: PALETTE.border, background: PALETTE.surface }}
           >
-            {meals.length === 0 ? (
+            {todayMeals.length === 0 ? (
               <div className="py-8 text-center">
                 <NL>No meals logged</NL>
               </div>
             ) : (
-              meals.map((m, i) => (
+              todayMeals.map((m, i) => (
                 <div
                   key={m.id}
                   style={i > 0 ? { borderTop: `1px solid ${PALETTE.border}` } : undefined}
@@ -1682,7 +1911,7 @@ export function NutritionScreen({
           </button>
           <button
             type="button"
-            onClick={() => setView('scanner')}
+            onClick={() => changeView('scanner')}
             className="h-14 flex-1 rounded-2xl flex items-center justify-center gap-2.5 active:scale-[0.98] transition hover:opacity-90"
             style={{ background: PALETTE.fg, color: PALETTE.bg }}
           >
@@ -1700,7 +1929,7 @@ export function NutritionScreen({
         <button
           type="button"
           aria-label="Back"
-          onClick={() => setView('dashboard')}
+          onClick={() => changeView('dashboard')}
           className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
@@ -1708,75 +1937,108 @@ export function NutritionScreen({
         <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">
           Scanner
         </div>
-        <div className="h-11 w-11 -mr-2 flex items-center justify-center text-white/40">
+        <button
+          type="button"
+          aria-label="Open camera"
+          onClick={() => { setScanMode('ai'); fileInputRef.current?.click(); }}
+          className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
+        >
           <Camera size={18} />
-        </div>
+        </button>
       </div>
 
       <div className="flex-1 flex items-center justify-center px-6">
-        <div
-          className="relative w-full rounded-[28px] overflow-hidden"
-          style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
-        >
+        {scanMode === 'barcode' ? (
+          <BarcodeReaderView onDetected={handleBarcodeDetected} />
+        ) : (
           <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage:
-                'repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 8px, transparent 8px 16px)',
-            }}
-          />
-          <div className="absolute inset-0 flex">
-            <div className="flex-1 border-r border-white/5" />
-            <div className="flex-1 border-r border-white/5" />
-            <div className="flex-1" />
-          </div>
-          <div className="absolute inset-0 flex flex-col">
-            <div className="flex-1 border-b border-white/5" />
-            <div className="flex-1 border-b border-white/5" />
-            <div className="flex-1" />
-          </div>
-          <div className="absolute inset-4 text-white/80">
-            <CornerBracket position="tl" />
-            <CornerBracket position="tr" />
-            <CornerBracket position="bl" />
-            <CornerBracket position="br" />
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="h-px w-3 bg-white/40" />
-            <div className="absolute h-3 w-px bg-white/40" />
-            <div className="absolute h-10 w-10 rounded-full border border-white/15" />
-          </div>
-          <div className="absolute bottom-4 left-0 right-0 text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
-              <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-              <NL className="text-white/80 text-[9px] tracking-[0.22em]">Frame the dish</NL>
+            className="relative w-full rounded-[28px] overflow-hidden"
+            style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  'repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 8px, transparent 8px 16px)',
+              }}
+            />
+            <div className="absolute inset-0 flex">
+              <div className="flex-1 border-r border-white/5" />
+              <div className="flex-1 border-r border-white/5" />
+              <div className="flex-1" />
+            </div>
+            <div className="absolute inset-0 flex flex-col">
+              <div className="flex-1 border-b border-white/5" />
+              <div className="flex-1 border-b border-white/5" />
+              <div className="flex-1" />
+            </div>
+            <div className="absolute inset-4 text-white/80">
+              <CornerBracket position="tl" />
+              <CornerBracket position="tr" />
+              <CornerBracket position="bl" />
+              <CornerBracket position="br" />
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-px w-3 bg-white/40" />
+              <div className="absolute h-3 w-px bg-white/40" />
+              <div className="absolute h-10 w-10 rounded-full border border-white/15" />
+            </div>
+            <div className="absolute bottom-4 left-0 right-0 text-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+                <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                <NL className="text-white/80 text-[9px] tracking-[0.22em]">
+                  {scanMode === 'gallery' ? 'Select from gallery' : 'Frame the dish'}
+                </NL>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="px-6 pt-4" style={{ paddingBottom: 'calc(var(--safe-bottom) + 2.5rem)' }}>
         <div className="flex items-center justify-center gap-6 mb-6">
-          <NL className="text-white/40 tracking-[0.22em]">Gallery</NL>
-          <NL className="text-white tracking-[0.22em]">AI scan</NL>
-          <NL className="text-white/40 tracking-[0.22em]">Barcode</NL>
+          {SCAN_TABS.map(({ k, l }) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setScanMode(k)}
+              className="min-h-[44px] px-2 transition active:opacity-60"
+            >
+              <NL
+                className={`tracking-[0.22em] transition ${scanMode === k ? '' : 'opacity-40'}`}
+                style={{ color: 'white' }}
+              >
+                {l}
+              </NL>
+            </button>
+          ))}
         </div>
         <div className="flex items-center justify-between">
           <button
             type="button"
             aria-label="Open gallery"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => { setScanMode('gallery'); galleryInputRef.current?.click(); }}
             className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
           >
             <ImageIcon size={18} />
           </button>
           <button
             type="button"
-            aria-label="Capture meal"
-            onClick={() => fileInputRef.current?.click()}
-            className="relative h-20 w-20 rounded-full border-2 border-white/80 flex items-center justify-center active:scale-95 transition"
+            aria-label={scanMode === 'barcode' ? 'Scanning barcode…' : 'Capture meal'}
+            disabled={scanMode === 'barcode'}
+            onClick={() => {
+              if (scanMode === 'ai') fileInputRef.current?.click();
+              else if (scanMode === 'gallery') galleryInputRef.current?.click();
+            }}
+            className="relative h-20 w-20 rounded-full border-2 border-white/80 flex items-center justify-center active:scale-95 transition disabled:opacity-40"
           >
-            <span className="h-[60px] w-[60px] rounded-full bg-white" />
+            {scanMode === 'barcode' ? (
+              <span className="h-[60px] w-[60px] rounded-full border-2 border-white/40 flex items-center justify-center">
+                <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+              </span>
+            ) : (
+              <span className="h-[60px] w-[60px] rounded-full bg-white" />
+            )}
           </button>
           <button
             type="button"
@@ -1784,6 +2046,7 @@ export function NutritionScreen({
             onClick={() => {
               setImage(null);
               setScanResult(null);
+              setScanMode('ai');
             }}
             className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
           >
@@ -1800,6 +2063,13 @@ export function NutritionScreen({
         ref={fileInputRef}
         onChange={handleCapture}
       />
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        ref={galleryInputRef}
+        onChange={handleCapture}
+      />
     </div>
   );
 
@@ -1814,7 +2084,7 @@ export function NutritionScreen({
         {view === 'analyzing' && (
           <AnalyzingView
             onCancel={() => {
-              setView('scanner');
+              changeView('scanner');
               setImage(null);
             }}
           />
@@ -1830,7 +2100,7 @@ export function NutritionScreen({
               baseMacros: scanResult.macros,
             }}
             image={image}
-            onBack={() => setView('scanner')}
+            onBack={() => changeView('scanner')}
             onSave={handleSaveScanned}
             mode="scan"
             isSaving={isSaving}
@@ -1842,13 +2112,13 @@ export function NutritionScreen({
             image={null}
             onBack={() => {
               setSelectedMeal(null);
-              setView('dashboard');
+              changeView('dashboard');
             }}
             onSave={(portion, macros) => {
               updateMealPortion(selectedMeal.id, portion);
               updateMealMacros(selectedMeal.id, macros);
               setSelectedMeal(null);
-              setView('dashboard');
+              changeView('dashboard');
               toast.success('Meal updated.');
             }}
             onUpdatePortion={(p) => updateMealPortion(selectedMeal.id, p)}

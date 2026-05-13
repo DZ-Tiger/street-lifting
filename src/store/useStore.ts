@@ -33,6 +33,7 @@ export interface UserProfile {
   goal_program: GoalType;
   gender: Gender;
   activity_level: number;
+  display_name?: string;
 }
 
 interface RawProfile extends Omit<UserProfile, 'goal_program' | 'gender' | 'activity_level'> {
@@ -117,6 +118,7 @@ interface SupabaseState {
   exerciseLogs: ExerciseLog[];
   completedSessions: CompletedSession[];
   loading: boolean;
+  avatarUrl: string | null;
 
   fetchProfile: () => Promise<void>;
   fetchTrainingLogs: () => Promise<void>;
@@ -157,6 +159,7 @@ export const useStore = create<SupabaseState>((set, get) => ({
   exerciseLogs: [],
   completedSessions: [],
   loading: false,
+  avatarUrl: null,
 
   fetchProfile: async () => {
     set({ loading: true });
@@ -164,9 +167,12 @@ export const useStore = create<SupabaseState>((set, get) => ({
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      set({ profile: null, loading: false });
+      set({ profile: null, avatarUrl: null, loading: false });
       return;
     }
+
+    const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+    set({ avatarUrl: typeof meta.avatar_url === 'string' ? meta.avatar_url : null });
 
     let raw: RawProfile | null = null;
     let retries = FETCH_RETRY_COUNT;
@@ -399,6 +405,10 @@ export const useStore = create<SupabaseState>((set, get) => ({
     if (error) {
       console.error('Error updating account:', error);
       throw error;
+    }
+
+    if ('avatar_url' in metadataPatch) {
+      set({ avatarUrl: metadataPatch.avatar_url ?? null });
     }
   },
 

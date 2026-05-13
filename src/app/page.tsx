@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, ReactNode } from 'react';
+import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   useStore,
@@ -328,6 +329,7 @@ const BottomNav = ({ active, onNav }: { active: AppView; onNav: (v: AppView) => 
 interface HomeScreenProps {
   onNav: (v: AppView) => void;
   profileGender: Gender | undefined;
+  displayName?: string;
   completedSessionDates: string[];
   template: ReturnType<typeof getSessionTemplate>;
   nutritionTotals: { calories: number; protein: number; carbs: number; fat: number };
@@ -340,6 +342,7 @@ const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const HomeScreen = ({
   onNav,
   profileGender,
+  displayName,
   completedSessionDates,
   template,
   nutritionTotals,
@@ -357,7 +360,7 @@ const HomeScreen = ({
   });
 
   const remaining = Math.max(0, nutritionTarget - nutritionTotals.calories);
-  const greetingName = profileGender === 'female' ? 'Athlete' : 'Champion';
+  const greetingName = displayName || (profileGender === 'female' ? 'Athlete' : 'Champion');
 
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
@@ -1181,6 +1184,7 @@ interface ProfileScreenProps {
   onUpdateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   onUpdateOneRepMax: (exercise: ExerciseType, value: number) => Promise<void>;
   onOpenAccount: () => void;
+  avatarUrl?: string | null;
 }
 
 const ONE_RM_ROWS: { label: string; key: ExerciseType }[] = [
@@ -1200,8 +1204,10 @@ const ProfileScreen = ({
   onUpdateProfile,
   onUpdateOneRepMax,
   onOpenAccount,
+  avatarUrl,
 }: ProfileScreenProps) => {
   const [editMode, setEditMode] = useState(false);
+  const [editDisplayName, setEditDisplayName] = useState(profile?.display_name || '');
   const [editBirthDate, setEditBirthDate] = useState(profile?.birth_date || '2000-01-01');
   const [editHeight, setEditHeight] = useState(profile?.height || 180);
   const [editGender, setEditGender] = useState<Gender>(profile?.gender ?? 'male');
@@ -1213,6 +1219,7 @@ const ProfileScreen = ({
     setIsSaving(true);
     try {
       await onUpdateProfile({
+        display_name: editDisplayName.trim() || undefined,
         birth_date: editBirthDate,
         height: editHeight,
         gender: editGender,
@@ -1228,7 +1235,8 @@ const ProfileScreen = ({
     }
   };
 
-  const initial = profile?.gender === 'female' ? 'F' : 'A';
+  const fallbackInitial = profile?.gender === 'female' ? 'F' : 'A';
+  const initial = (profile?.display_name?.[0] || fallbackInitial).toUpperCase();
   const age = calculateAge(profile?.birth_date || '');
 
   return (
@@ -1236,30 +1244,45 @@ const ProfileScreen = ({
       <SHeader
         title="Profile"
         right={
-          <button
-            type="button"
-            onClick={onOpenAccount}
-            className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full transition hover:opacity-70"
-            style={{ color: 'var(--fg)' }}
-            aria-label="Account settings"
-          >
-            <SettingsIcon size={18} strokeWidth={1.75} />
-          </button>
+          <div className="flex items-center gap-1 -mr-2">
+            <button
+              type="button"
+              onClick={() => setEditMode((v) => !v)}
+              className="text-[10px] font-medium uppercase tracking-[0.16em] transition hover:opacity-70 min-h-[44px] px-3"
+              style={{ color: 'var(--fg)' }}
+              aria-label={editMode ? 'Cancel editing' : 'Edit profile'}
+            >
+              {editMode ? 'Cancel' : 'Edit'}
+            </button>
+            <button
+              type="button"
+              onClick={onOpenAccount}
+              className="h-11 w-11 flex items-center justify-center rounded-full transition hover:opacity-70"
+              style={{ color: 'var(--fg)' }}
+              aria-label="Account settings"
+            >
+              <SettingsIcon size={18} strokeWidth={1.75} />
+            </button>
+          </div>
         }
       />
       <div className="flex-1 overflow-y-auto pb-32">
         <div className="px-5 mb-5 flex items-center gap-4">
           <div
-            className="h-16 w-16 rounded-2xl border flex items-center justify-center shrink-0"
+            className="h-16 w-16 rounded-2xl border flex items-center justify-center shrink-0 relative overflow-hidden"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
           >
-            <NN className="text-[22px] font-medium" style={{ color: 'var(--fg)' }}>
-              {initial}
-            </NN>
+            {avatarUrl ? (
+              <Image src={avatarUrl} alt="Avatar" fill className="object-cover" unoptimized />
+            ) : (
+              <NN className="text-[22px] font-medium" style={{ color: 'var(--fg)' }}>
+                {initial}
+              </NN>
+            )}
           </div>
           <div>
             <div className="text-[20px] font-medium leading-tight">
-              {profile?.gender === 'female' ? 'Athlete' : 'Champion'}
+              {profile?.display_name || (profile?.gender === 'female' ? 'Athlete' : 'Champion')}
             </div>
             <NN className="block mt-0.5 text-[11px]" style={{ color: 'var(--muted)' }}>
               {profile?.onboarding_completed ? 'profile complete' : 'in progress'} · {bodyWeight} kg
@@ -1356,16 +1379,8 @@ const ProfileScreen = ({
           })}
         </div>
 
-        <div className="px-5 mb-2 flex items-center justify-between">
+        <div className="px-5 mb-2">
           <NL>Settings</NL>
-          <button
-            type="button"
-            onClick={() => setEditMode((v) => !v)}
-            className="text-[10px] font-medium uppercase tracking-[0.16em] transition hover:opacity-70 min-h-[44px] px-1"
-            style={{ color: 'var(--fg)' }}
-          >
-            {editMode ? 'Cancel' : 'Edit'}
-          </button>
         </div>
 
         {editMode && (
@@ -1373,6 +1388,17 @@ const ProfileScreen = ({
             className="mx-5 mb-5 border rounded-2xl p-5 space-y-4"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
           >
+            <div>
+              <NL className="block mb-1.5">Name</NL>
+              <input
+                type="text"
+                value={editDisplayName}
+                onChange={(e) => setEditDisplayName(e.target.value)}
+                placeholder="Champion"
+                className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[16px] font-medium"
+                style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
                 <NL>Height</NL>
@@ -1517,6 +1543,7 @@ export default function App() {
     exerciseLogs,
     completedSessions,
     loading,
+    avatarUrl,
     fetchProfile,
     fetchTrainingLogs,
     updatePerformance,
@@ -1532,6 +1559,7 @@ export default function App() {
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentDay, setCurrentDay] = useState(1);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const [nutritionView, setNutritionView] = useState('dashboard');
 
   const [skin, setSkinState] = useState<SkinKey>(() => {
     if (typeof window === 'undefined') return 'mono';
@@ -1561,13 +1589,10 @@ export default function App() {
           router.push('/login');
         } else {
           await fetchProfile();
-          setHasMounted(true);
         }
       } catch (err) {
         console.error('Unexpected auth error:', err);
         router.push('/login');
-      } else {
-        await fetchProfile();
       }
     };
     checkUser();
@@ -1621,9 +1646,11 @@ export default function App() {
     [profile, bodyWeight]
   );
 
-  const nutritionTotals = useMemo(
-    () =>
-      meals.reduce(
+  const nutritionTotals = useMemo(() => {
+    const today = new Date().toDateString();
+    return meals
+      .filter((m) => new Date(m.timestamp).toDateString() === today)
+      .reduce(
         (a, m) => ({
           calories: a.calories + m.calories,
           protein: a.protein + m.macros.protein,
@@ -1631,9 +1658,8 @@ export default function App() {
           fat: a.fat + m.macros.fat,
         }),
         { calories: 0, protein: 0, carbs: 0, fat: 0 }
-      ),
-    [meals]
-  );
+      );
+  }, [meals]);
 
   const handleNav = (view: AppView) => {
     setCurrentView(view);
@@ -1672,6 +1698,7 @@ export default function App() {
           <HomeScreen
             onNav={handleNav}
             profileGender={profile.gender}
+            displayName={profile.display_name}
             completedSessionDates={completedSessionDates}
             template={template}
             nutritionTotals={nutritionTotals}
@@ -1696,8 +1723,9 @@ export default function App() {
         return (
           <NutritionScreen
             hideBackButton
-            bottomInset={BOTTOM_NAV_INSET_PX}
+            bottomInset={nutritionView === 'dashboard' ? BOTTOM_NAV_INSET_PX : 0}
             onBack={() => setCurrentView('home')}
+            onViewChange={setNutritionView}
           />
         );
       case 'progress':
@@ -1721,6 +1749,7 @@ export default function App() {
             onUpdateProfile={updateProfile}
             onUpdateOneRepMax={updateOneRepMax}
             onOpenAccount={() => setAccountDialogOpen(true)}
+            avatarUrl={avatarUrl}
           />
         );
     }
@@ -1748,7 +1777,9 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
 
-        <BottomNav active={currentView} onNav={handleNav} />
+        {(currentView !== 'nutrition' || nutritionView === 'dashboard') && (
+          <BottomNav active={currentView} onNav={handleNav} />
+        )}
       </div>
 
       <AccountSettingsDialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen} />
