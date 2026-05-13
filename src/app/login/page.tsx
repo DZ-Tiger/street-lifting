@@ -167,10 +167,19 @@ const Divider = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-const ProviderButton = ({ icon, label }: { icon: ReactNode; label: string }) => (
+const ProviderButton = ({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick?: () => void;
+}) => (
   <button
     type="button"
-    className="h-12 rounded-2xl border flex items-center justify-center gap-3 transition"
+    onClick={onClick}
+    className="h-12 rounded-2xl border flex items-center justify-center gap-3 transition active:opacity-70"
     style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--fg)' }}
   >
     {icon}
@@ -232,10 +241,12 @@ const CTA = ({
 
 const LoginScreen = ({
   onLogin,
+  onGoogleLogin,
   onSwitch,
   loading,
 }: {
   onLogin: (email: string, password: string) => void;
+  onGoogleLogin: () => void;
   onSwitch: () => void;
   loading: boolean;
 }) => {
@@ -320,7 +331,11 @@ const LoginScreen = ({
           <Divider>or continue with</Divider>
           <div className="grid grid-cols-2 gap-2 mt-3">
             <ProviderButton icon={<AppleGlyph />} label="Apple" />
-            <ProviderButton icon={<GoogleGlyph />} label="Google" />
+            <ProviderButton
+              icon={<GoogleGlyph />}
+              label="Google"
+              onClick={onGoogleLogin}
+            />
           </div>
         </div>
 
@@ -683,6 +698,16 @@ export default function LoginPage() {
     setLoading(false);
   };
 
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    if (error) toast.error(error.message);
+  };
+
   const handleSignup = async (email: string, password: string) => {
     setLoading(true);
     const { error } = await supabase.auth.signUp({ email, password });
@@ -705,7 +730,12 @@ export default function LoginPage() {
         style={{ height: '100svh', maxHeight: '844px' }}
       >
         {mode === 'login' ? (
-          <LoginScreen onLogin={handleLogin} onSwitch={() => setMode('signup')} loading={loading} />
+          <LoginScreen
+            onLogin={handleLogin}
+            onGoogleLogin={handleGoogleLogin}
+            onSwitch={() => setMode('signup')}
+            loading={loading}
+          />
         ) : (
           <SignupScreen
             onSignup={handleSignup}
