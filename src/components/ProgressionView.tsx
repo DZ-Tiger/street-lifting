@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { useStore, ExerciseType } from '@/store/useStore';
+import { useStore } from '@/store/useStore';
+import { ExerciseType } from '@/lib/exercise';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,92 +19,89 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { format, addDays, subMonths, isAfter, subDays } from 'date-fns';
-import { fr } from 'date-fns/locale';
+
+interface ChartPoint {
+  date: string;
+  estimated1RM: number | null;
+  trend: number;
+  isProjection: boolean;
+}
+
+const EXERCISES: ExerciseType[] = ['Pull-up', 'Dips', 'Muscle-up', 'Squat'];
+const RECENT_MONTHS = 3;
+const PROJECTION_DAYS = 30;
+const MIN_LOGS_FOR_TREND = 3;
+const HEATMAP_DAYS = 84;
 
 export default function ProgressionView() {
   const { profile, exerciseLogs, completedSessions } = useStore();
   const [activeExercise, setActiveExercise] = useState<ExerciseType>('Muscle-up');
 
-  // Filtrer les logs des 3 derniers mois pour l'exercice sélectionné
   const filteredLogs = useMemo(() => {
-    const threeMonthsAgo = subMonths(new Date(), 3);
+    const cutoff = subMonths(new Date(), RECENT_MONTHS);
     return exerciseLogs
       .filter(
         (log) =>
-          log.exercise_name === activeExercise &&
-          log.date &&
-          isAfter(new Date(log.date), threeMonthsAgo)
+          log.exercise_name === activeExercise && log.date && isAfter(new Date(log.date), cutoff)
       )
-      .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [exerciseLogs, activeExercise]);
 
-  // Préparation des données pour le graphique avec la trendline
-  const chartData = useMemo(() => {
+  const chartData = useMemo<ChartPoint[]>(() => {
     if (filteredLogs.length < 2) return [];
 
     const startTime = new Date(filteredLogs[0].date).getTime();
-
-    // Convertir les logs en points (x: jours écoulés, y: 1RM)
     const dataPoints = filteredLogs.map((log) => ({
       x: (new Date(log.date).getTime() - startTime) / (1000 * 60 * 60 * 24),
       y: log.calculated_1rm,
       date: new Date(log.date),
-      actual1RM: log.calculated_1rm,
     }));
 
     const trend = calculateTrendline(dataPoints.map((p) => ({ x: p.x, y: p.y })));
-
     if (!trend) return [];
 
-    // Ajouter les points réels
-    const chart = dataPoints.map((p) => ({
-      date: format(p.date, 'dd MMM', { locale: fr }),
-      '1RM Estimé': Math.round(p.y * 10) / 10,
-      Tendance: Math.round((trend.slope * p.x + trend.intercept) * 10) / 10,
+    const chart: ChartPoint[] = dataPoints.map((p) => ({
+      date: format(p.date, 'dd MMM'),
+      estimated1RM: Math.round(p.y * 10) / 10,
+      trend: Math.round((trend.slope * p.x + trend.intercept) * 10) / 10,
       isProjection: false,
     }));
 
-    // Ajouter la prévision à +30 jours après le dernier point
     const lastPoint = dataPoints[dataPoints.length - 1];
-    const futureX = lastPoint.x + 30;
-    const futureDate = addDays(lastPoint.date, 30);
+    const futureX = lastPoint.x + PROJECTION_DAYS;
+    const futureDate = addDays(lastPoint.date, PROJECTION_DAYS);
     const projectedY = trend.slope * futureX + trend.intercept;
 
     chart.push({
-      date: format(futureDate, 'dd MMM', { locale: fr }) + ' (Proj)',
-      '1RM Estimé': null as unknown as number,
-      Tendance: Math.round(projectedY * 10) / 10,
+      date: `${format(futureDate, 'dd MMM')} (Proj)`,
+      estimated1RM: null,
+      trend: Math.round(projectedY * 10) / 10,
       isProjection: true,
     });
 
     return chart;
   }, [filteredLogs]);
 
-  // KPIs
   const kpis = useMemo(() => {
     if (filteredLogs.length === 0) return null;
     const lastLog = filteredLogs[filteredLogs.length - 1];
     const bw = profile?.body_weight || 75;
-
-    // Volume du dernier set principal = (Poids de corps + Lest) * Reps
     const lastVolume = (bw + lastLog.added_weight) * lastLog.reps;
 
     return {
       last1RM: lastLog.calculated_1rm,
-      lastVolume: lastVolume,
-      date: new Date(lastLog.date!),
+      lastVolume,
+      date: new Date(lastLog.date),
     };
   }, [filteredLogs, profile]);
 
-  // Historique des PR (nouveaux records chronologiques)
   const prHistory = useMemo(() => {
     const prs: typeof exerciseLogs = [];
     let currentMax = 0;
 
-    // exerciseLogs est trié du plus récent au plus ancien, on doit l'inverser pour trouver les PRs
     const chronologicalLogs = [...exerciseLogs]
       .filter((log) => log.exercise_name === activeExercise && log.date)
-      .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     for (const log of chronologicalLogs) {
       if (log.calculated_1rm > currentMax) {
@@ -112,11 +110,10 @@ export default function ProgressionView() {
       }
     }
 
-    // Renvoyer les plus récents en premier
     return prs.reverse().slice(0, 5);
   }, [exerciseLogs, activeExercise]);
 
-  const hasEnoughData = filteredLogs.length >= 3;
+  const hasEnoughData = filteredLogs.length >= MIN_LOGS_FOR_TREND;
 
   return (
     <motion.div
@@ -129,18 +126,17 @@ export default function ProgressionView() {
       <div className="space-y-1 text-center py-2">
         <h2 className="text-2xl font-black text-slate-900 uppercase italic">Progression</h2>
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-          Analyse tes performances et projections
+          Analyze your performance and projections
         </p>
       </div>
 
-      {/* Sélecteur d'Exercice */}
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
-        {(['Tractions', 'Dips', 'Muscle-up', 'Squat'] as ExerciseType[]).map((ex) => (
+        {EXERCISES.map((ex) => (
           <Button
             key={ex}
             variant={activeExercise === ex ? 'default' : 'outline'}
             onClick={() => setActiveExercise(ex)}
-            className={`rounded-xl whitespace-nowrap text-xs font-black uppercase italic tracking-wider h-10 ${
+            className={`rounded-xl whitespace-nowrap text-xs font-black uppercase italic tracking-wider min-h-[44px] ${
               activeExercise === ex
                 ? 'bg-blue-600 text-white border-none shadow-md shadow-blue-500/20'
                 : 'bg-white text-slate-500 border-slate-200'
@@ -151,7 +147,6 @@ export default function ProgressionView() {
         ))}
       </div>
 
-      {/* KPIs Dashboard */}
       {kpis ? (
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-white border-slate-100 rounded-3xl shadow-sm">
@@ -161,7 +156,7 @@ export default function ProgressionView() {
                   <Activity className="w-3 h-3 text-blue-600" />
                 </div>
                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                  Dernier 1RM
+                  Latest 1RM
                 </span>
               </div>
               <p className="text-2xl font-black text-slate-800 italic">
@@ -178,7 +173,7 @@ export default function ProgressionView() {
                   <Flame className="w-3 h-3 text-amber-500 fill-current" />
                 </div>
                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                  Volume (Set)
+                  Set Volume
                 </span>
               </div>
               <p className="text-2xl font-black text-slate-800 italic">
@@ -191,20 +186,19 @@ export default function ProgressionView() {
       ) : (
         <div className="bg-slate-100/50 border border-slate-200/50 border-dashed rounded-3xl p-6 text-center">
           <p className="text-slate-400 text-xs font-bold uppercase tracking-widest italic">
-            Aucune donnée pour le moment
+            No data yet
           </p>
         </div>
       )}
 
-      {/* Heatmap d'assiduité */}
       <div className="space-y-4">
         <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2 px-1">
-          <CalendarDays className="w-3 h-3 text-emerald-500" /> Assiduité (12 semaines)
+          <CalendarDays className="w-3 h-3 text-emerald-500" /> Consistency (12 weeks)
         </h4>
         <div className="bg-white border border-slate-100 p-5 rounded-[2rem] shadow-sm">
           <div className="grid grid-rows-7 gap-1.5 grid-flow-col overflow-x-auto pb-2 scrollbar-hide">
-            {Array.from({ length: 84 }).map((_, i) => {
-              const d = subDays(new Date(), 83 - i);
+            {Array.from({ length: HEATMAP_DAYS }).map((_, i) => {
+              const d = subDays(new Date(), HEATMAP_DAYS - 1 - i);
               const dateStr = format(d, 'yyyy-MM-dd');
               const sessionDates = new Set(
                 completedSessions.map((s) => format(new Date(s.date), 'yyyy-MM-dd'))
@@ -220,15 +214,14 @@ export default function ProgressionView() {
             })}
           </div>
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2 text-center">
-            Ne brise pas la chaîne
+            Don&apos;t break the chain
           </p>
         </div>
       </div>
 
-      {/* Graphique de Performance */}
       <div className="space-y-4">
         <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2 px-1">
-          <BarChart3 className="w-3 h-3 text-blue-600" /> Évolution & Tendance (3 mois)
+          <BarChart3 className="w-3 h-3 text-blue-600" /> Trend &amp; projection (3 months)
         </h4>
 
         <Card className="bg-white border-slate-100 rounded-[2rem] shadow-sm overflow-hidden relative">
@@ -238,11 +231,10 @@ export default function ProgressionView() {
                 <Lock className="w-5 h-5 text-slate-400" />
               </div>
               <p className="text-sm font-black text-slate-800 uppercase italic">
-                Débloque tes prévisions
+                Unlock your projection
               </p>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
-                Continue à t&apos;entraîner ! Il nous faut au moins 3 séances de {activeExercise}{' '}
-                pour calculer ta tendance.
+                Keep training. We need at least 3 logged {activeExercise} sessions to draw a trend.
               </p>
             </div>
           )}
@@ -285,7 +277,8 @@ export default function ProgressionView() {
                     />
                     <Line
                       type="monotone"
-                      dataKey="Tendance"
+                      dataKey="trend"
+                      name="Trend"
                       stroke="#cbd5e1"
                       strokeWidth={2}
                       strokeDasharray="5 5"
@@ -294,7 +287,8 @@ export default function ProgressionView() {
                     />
                     <Line
                       type="monotone"
-                      dataKey="1RM Estimé"
+                      dataKey="estimated1RM"
+                      name="Estimated 1RM"
                       stroke="#2563eb"
                       strokeWidth={3}
                       dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#2563eb' }}
@@ -308,17 +302,16 @@ export default function ProgressionView() {
         </Card>
       </div>
 
-      {/* Historique Simplifié des PRs */}
       <div className="space-y-4 pb-4">
         <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2 px-1">
-          <Trophy className="w-3 h-3 text-emerald-500" /> Historique des Records (PR)
+          <Trophy className="w-3 h-3 text-emerald-500" /> Personal records
         </h4>
 
         <div className="space-y-3">
           {prHistory.length > 0 ? (
             prHistory.map((pr, idx) => (
               <div
-                key={idx}
+                key={pr.id || idx}
                 className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center justify-between shadow-sm relative overflow-hidden group hover:border-emerald-200 transition-colors"
               >
                 {idx === 0 && <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500" />}
@@ -329,12 +322,12 @@ export default function ProgressionView() {
                     </span>
                     {idx === 0 && (
                       <Badge className="bg-emerald-50 text-emerald-600 border-none px-1.5 py-0 text-[8px] font-black uppercase tracking-widest">
-                        Actuel
+                        Current
                       </Badge>
                     )}
                   </div>
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    {format(new Date(pr.date), 'dd MMMM yyyy', { locale: fr })}
+                    {format(new Date(pr.date), 'dd MMMM yyyy')}
                   </div>
                 </div>
                 <div className="text-right">
@@ -348,7 +341,7 @@ export default function ProgressionView() {
           ) : (
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-center">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
-                Enregistre tes premières séances pour voir tes records
+                Log your first sessions to see your records
               </p>
             </div>
           )}

@@ -1,47 +1,51 @@
 @AGENTS.md
-# CLAUDE.md - Street Flow Development Guide
+# CLAUDE.md — 9.81 Development Guide
+
+> Codename "9.81" — the product brand. Named after Earth's gravity (9.81 m/s²) to convey an
+> analytical, performance-focused identity for Street Lifting. All UI copy, manifests, and
+> metadata should use "9.81" as the product name.
 
 ## 🎯 Vision & UX
-- **Concept :** Application de performance pour le Street Lifting (Tractions, Dips, Muscle-up, Squat).
-- **Philosophie "Mains Sales" :** Optimisé pour l'usage avec de la magnésie. Zéro clavier pendant l'entraînement. Saisie via pavés numériques larges et boutons massifs.
-- **Design :** Style "Analytical Performance", minimaliste, professionnel, monochrome par défaut (Noir/Blanc/Slate). Utilisation de Lucide React pour les icônes (stroke 1.5px).
+- **Concept:** A performance app for Street Lifting (pull-ups, dips, muscle-ups, squats).
+- **"Chalked Hands" Philosophy:** Optimized for use with chalk — no keyboard during workouts. Input should use large numeric pads and oversized buttons.
+- **Design:** "Analytical Performance" style: minimalist, professional, monochrome by default (Black/White/Slate). Use Lucide React for icons (1.5px stroke).
 
-## 🛠 Stack Technique
-- **Frontend :** Next.js 15 (App Router) + TypeScript.
-- **Style :** TailwindCSS 4 + Framer Motion.
-- **UI :** Shadcn UI (fondations dans `src/components/ui`).
-- **State :** Zustand (`src/store/`) avec persistance pour la nutrition et les profils.
-- **Backend :** Supabase (Auth, PostgreSQL, RLS).
-- **IA :** Google Gemini SDK (`@google/generative-ai`) pour le scanner de nutrition.
+## 🛠 Tech Stack
+- **Frontend:** Next.js 15 (App Router) + TypeScript.
+- **Styling:** TailwindCSS 4 + Framer Motion.
+- **UI Library:** Shadcn UI (base components in `src/components/ui`).
+- **State:** Zustand (`src/store/`) with persistence for nutrition data and profiles.
+- **Backend:** Supabase (Auth, PostgreSQL, RLS).
+- **AI:** Google Gemini SDK (`@google/generative-ai`) for the nutrition scanner.
 
-## 🚀 Commandes Utiles
-- **Dév :** `npm run dev`
-- **Build :** `npm run build`
-- **Lint :** `npm run lint` (Zéro erreur tolérée)
-- **Install :** `npm install`
+## 🚀 Useful Commands
+- **Dev:** `npm run dev`
+- **Build:** `npm run build`
+- **Lint:** `npm run lint` (Aim for zero lint errors)
+- **Install:** `npm install`
 
-## 📏 Standards de Code & Typage
-- **Linting :** Respect strict des règles ESLint Next.js. Pas de types `any`, pas de warnings ignorés.
-- **Composants :** Séparer la logique des vues. Utiliser des composants fonctionnels avec TypeScript.
-- **État :** Préférer les calculs dérivés (`useMemo`) aux états redondants.
-- **Sécurité :** Vérifier systématiquement les politiques RLS de Supabase pour toute nouvelle table.
-- **Images :** Utiliser `new window.Image()` pour les manipulations de canvas afin d'éviter les conflits avec `next/image`.
+## 📏 Coding & Typing Standards
+- **Linting:** Strict ESLint rules following Next.js recommendations. Avoid `any` types and do not ignore warnings.
+- **Components:** Separate logic from presentation. Use functional components with TypeScript.
+- **State:** Prefer derived calculations (`useMemo`) over redundant state.
+- **Security:** Always verify Supabase RLS policies before adding new tables.
+- **Images:** Use `new window.Image()` when manipulating canvas to avoid conflicts with `next/image`.
 
-## 🧠 Algorithmes & Logique Métier
-- **Force (1RM Epley) :** `1RM = Charge_Totale * (1 + (Reps / 30))`.
-- **Nutrition (BMR Mifflin-St Jeor) :**
-  - Homme : `(10 * poids) + (6.25 * taille) - (5 * age) + 5`
-  - Femme : `(10 * poids) + (6.25 * taille) - (5 * age) - 161`
-- **TDEE :** `BMR * ActivityLevel`.
-- **Macros :** Protéines = 2g/kg, Lipides = 1g/kg, Glucides = reste des calories.
+## 🧠 Algorithms & Business Logic
+- **Strength (Epley 1RM):** `1RM = Load * (1 + (Reps / 30))`.
+- **Nutrition (Mifflin-St Jeor BMR):**
+  - Male: `(10 * weight) + (6.25 * height) - (5 * age) + 5`
+  - Female: `(10 * weight) + (6.25 * height) - (5 * age) - 161`
+- **TDEE:** `BMR * ActivityLevel`.
+- **Macros guideline:** Protein = 2g/kg, Fat = 1g/kg, Carbs = remaining calories.
 
-## 📁 Structure des Données
-- `profiles` : Données physiques et 1RM de référence.
-- `nutrition_logs` : Historique des repas avec portions (fractions ou grammes).
-- `exercise_logs` : Séries, répétitions, RPE et poids ajouté.
+## 📁 Data Structure
+- `profiles`: Physical data and reference 1RM values.
+- `nutrition_logs`: Meal history with portioning (fractions or grams).
+- `exercise_logs`: Sets, reps, RPE, and added weight.
 
-## 🤖 Instructions pour l'IA
-1. **Avant de coder :** Lire `src/store/useStore.ts` pour comprendre les impacts sur le poids de corps (`body_weight`).
-2. **Scanner :** Le flux de scan doit toujours permettre : Capture -> Analyse (Skeleton) -> Validation/Édition -> Enregistrement.
-3. **Ergonomie :** Toujours se demander "Puis-je cliquer sur ce bouton avec de la magnésie sur les doigts ?".
-4. **Typage :** Si un objet (ex: `goal`) est utilisé comme clé, utiliser un type union strict `'cut' | 'maintain' | 'bulk'`.
+## 🤖 AI / Agent Guidelines
+1. **Before coding:** Read `src/store/useStore.ts` to understand how `body_weight` is used across the app.
+2. **Scanner flow:** The scanning pipeline must always support: Capture → Analysis (skeleton) → Review/Edit → Save.
+3. **Ergonomics:** Always ask, "Can I tap this button with chalked hands?" when evaluating UI.
+4. **Typing:** If an object (e.g., `goal`) is used as a key, model it as a strict union type: `'cut' | 'maintain' | 'bulk'`.

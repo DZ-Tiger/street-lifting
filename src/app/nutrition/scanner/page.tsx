@@ -24,47 +24,19 @@ import { toast } from 'sonner';
 
 import { supabase } from '@/lib/supabase';
 import { NutritionResponse } from '@/app/api/nutrition/scan/route';
+import { useNutritionStore, HistoryItem } from '@/store/useNutritionStore';
 import {
-  useNutritionStore,
   calculateTargets,
+  Gender,
   GoalType,
-  HistoryItem,
-  GenderType,
-} from '@/store/useNutritionStore';
-import { useStore, calculateAge } from '@/store/useStore';
-/* ─────────────────────── Utilities ─────────────────────── */
+  GOAL_LABELS,
+  ACTIVITY_OPTIONS,
+  caloriesFromMacros,
+} from '@/lib/nutrition';
+import { useStore } from '@/store/useStore';
+import { calculateAge, compressImage, useIsHydrated } from '@/lib/utils';
 
-const compressImage = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (ev) => {
-      const img = new window.Image();
-      img.src = ev.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX = 1024;
-        let { width, height } = img;
-        if (width > height) {
-          if (width > MAX) {
-            height *= MAX / width;
-            width = MAX;
-          }
-        } else {
-          if (height > MAX) {
-            width *= MAX / height;
-            height = MAX;
-          }
-        }
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.8));
-      };
-      img.onerror = reject;
-    };
-    reader.onerror = reject;
-  });
+/* ─────────────────────── Constants ─────────────────────── */
 
 const PORTIONS = [
   { label: '1/4', value: 0.25 },
@@ -77,42 +49,28 @@ const PORTIONS = [
   { label: '2×', value: 2 },
 ];
 
-const GOAL_LABELS: Record<GoalType, string> = {
-  cut: 'Sèche',
-  maintain: 'Maintien',
-  bulk: 'Prise',
-};
-
-/* ─────────────────────── Design tokens (scoped) ─────────────────────── */
-
-// Mono fallback values — used for inline SVG/canvas styles that can't use CSS vars.
+/**
+ * All values are CSS variable references — they automatically follow the active skin
+ * (mono / carbon / sand) defined in `useSkin.ts`. Use these inside `style={{ ... }}`
+ * props. For SVG `stroke` / `fill` ATTRIBUTES (not style), use inline style instead
+ * so `var()` resolves correctly.
+ */
 const PALETTE = {
-  bg: '#ffffff',
-  surface: '#fcfcfc',
-  surface2: '#f3f3f2',
-  border: '#e7e6e3',
-  muted: '#8a8884',
-  ink3: '#b8b6b1',
-  ink2: '#5a5854',
-  fg: '#0f0f0e',
-  carbon: '#0c0c0b',
-  carbon2: '#161614',
+  bg: 'var(--bg)',
+  surface: 'var(--surface)',
+  surface2: 'var(--surface-2)',
+  border: 'var(--border)',
+  muted: 'var(--muted)',
+  ink3: 'var(--ink-3)',
+  ink2: 'var(--ink-2)',
+  fg: 'var(--fg)',
+  carbon: 'var(--carbon)',
+  carbon2: 'var(--carbon-2)',
 } as const;
 
-// Relay --n-* vars through the global skin vars so the stored skin applies here too.
 const cssVars: React.CSSProperties = {
-  '--n-bg': 'var(--bg)',
-  '--n-surface': 'var(--surface)',
-  '--n-surface-2': 'var(--surface-2)',
-  '--n-border': 'var(--border)',
-  '--n-muted': 'var(--muted)',
-  '--n-ink-3': 'var(--ink-3)',
-  '--n-ink-2': 'var(--ink-2)',
-  '--n-fg': 'var(--fg)',
-  '--n-carbon': 'var(--carbon)',
-  '--n-carbon-2': 'var(--carbon-2)',
   fontFamily: 'var(--font-geist, ui-sans-serif, system-ui, sans-serif)',
-} as React.CSSProperties;
+};
 
 /* ─────────────────────── Micro-components ─────────────────────── */
 
@@ -127,7 +85,7 @@ const NL = ({
 }) => (
   <span
     className={`text-[10px] font-medium uppercase tracking-[0.16em] ${className}`}
-    style={{ color: 'var(--n-muted)', ...style }}
+    style={{ color: 'var(--muted)', ...style }}
   >
     {children}
   </span>
@@ -155,7 +113,7 @@ const NN = ({
 );
 
 const HDivider = ({ className = '' }: { className?: string }) => (
-  <div className={`h-px w-full ${className}`} style={{ background: 'var(--n-border)' }} />
+  <div className={`h-px w-full ${className}`} style={{ background: 'var(--border)' }} />
 );
 
 /* ─────────────────────── CalorieRing ─────────────────────── */
@@ -165,7 +123,7 @@ const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => 
   const stroke = 3;
   const r = (size - stroke * 2) / 2 - 8;
   const c = 2 * Math.PI * r;
-  const pct = Math.min(consumed / goal, 1);
+  const pct = Math.min(consumed / Math.max(goal, 1), 1);
   const offset = c - pct * c;
   const remaining = Math.max(goal - consumed, 0);
   const tickCount = 60;
@@ -187,7 +145,7 @@ const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => 
                 y1={Math.sin(angle) * inner}
                 x2={Math.cos(angle) * outer}
                 y2={Math.sin(angle) * outer}
-                stroke={filled ? PALETTE.fg : PALETTE.border}
+                style={{ stroke: filled ? PALETTE.fg : PALETTE.border }}
                 strokeWidth={major ? 1.25 : 0.75}
                 strokeLinecap="round"
               />
@@ -198,7 +156,7 @@ const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => 
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={PALETTE.border}
+          style={{ stroke: PALETTE.border }}
           strokeWidth={stroke}
           fill="none"
         />
@@ -206,30 +164,32 @@ const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => 
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={PALETTE.fg}
           strokeWidth={stroke}
           fill="none"
           strokeDasharray={c}
           strokeDashoffset={offset}
           strokeLinecap="round"
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          style={{ transition: 'stroke-dashoffset 800ms cubic-bezier(.2,.7,.2,1)' }}
+          style={{
+            stroke: PALETTE.fg,
+            transition: 'stroke-dashoffset 800ms cubic-bezier(.2,.7,.2,1)',
+          }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <div className="flex items-center gap-1.5 mb-2" style={{ color: PALETTE.muted }}>
           <Flame size={11} strokeWidth={1.5} />
-          <NL className="tracking-[0.22em]">Énergie</NL>
+          <NL className="tracking-[0.22em]">Energy</NL>
         </div>
         <NN
           className="text-[44px] leading-none font-medium tracking-tight"
           style={{ color: PALETTE.fg } as React.CSSProperties}
         >
-          {consumed.toLocaleString('fr-FR')}
+          {consumed.toLocaleString('en-US')}
         </NN>
         <div className="mt-1.5 flex items-center gap-1.5">
           <NN className="text-[11px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-            / {goal.toLocaleString('fr-FR')}
+            / {goal.toLocaleString('en-US')}
           </NN>
           <NL className="text-[9px] tracking-[0.2em]">kcal</NL>
         </div>
@@ -244,7 +204,7 @@ const CalorieRing = ({ consumed, goal }: { consumed: number; goal: number }) => 
           >
             {remaining}
           </NN>
-          <NL className="text-[9px] tracking-[0.18em]">restantes</NL>
+          <NL className="text-[9px] tracking-[0.18em]">remaining</NL>
         </div>
       </div>
     </div>
@@ -264,7 +224,8 @@ const MacroBar = ({
   target: number;
   shade?: 'fg' | 'mid' | 'low';
 }) => {
-  const pct = Math.min((current / target) * 100, 100);
+  const safeTarget = Math.max(target, 1);
+  const pct = Math.min((current / safeTarget) * 100, 100);
   const over = current > target;
   const color = shade === 'fg' ? PALETTE.fg : shade === 'mid' ? PALETTE.ink2 : PALETTE.ink3;
   return (
@@ -323,8 +284,9 @@ const MealRow = ({
   onDelete: (id: string) => void;
 }) => (
   <button
+    type="button"
     onClick={() => onOpen(meal)}
-    className="w-full text-left group relative pl-6 pr-2 py-3.5 hover:bg-[#f3f3f2]/60 transition-colors"
+    className="w-full text-left group relative pl-6 pr-2 py-3.5 hover:opacity-90 transition-colors"
   >
     <div className="absolute left-2 top-0 bottom-0 w-px" style={{ background: PALETTE.border }} />
     <div
@@ -351,8 +313,8 @@ const MealRow = ({
         <div className="mt-1.5 flex items-center gap-3">
           {[
             { dot: PALETTE.fg, val: meal.macros.protein, unit: 'P' },
-            { dot: PALETTE.ink2, val: meal.macros.carbs, unit: 'G' },
-            { dot: PALETTE.ink3, val: meal.macros.fat, unit: 'L' },
+            { dot: PALETTE.ink2, val: meal.macros.carbs, unit: 'C' },
+            { dot: PALETTE.ink3, val: meal.macros.fat, unit: 'F' },
           ].map(({ dot, val, unit }) => (
             <span key={unit} className="flex items-center gap-1">
               <span className="h-1 w-1 rounded-full" style={{ background: dot }} />
@@ -389,9 +351,9 @@ const MealRow = ({
               onDelete(meal.id);
             }
           }}
-          className="ml-2 h-8 w-8 inline-flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 hover:bg-[#f3f3f2] transition cursor-pointer"
+          className="ml-2 h-11 w-11 inline-flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 hover:opacity-70 transition cursor-pointer"
           style={{ color: PALETTE.muted }}
-          aria-label="Supprimer"
+          aria-label="Delete meal"
         >
           <Trash2 size={15} />
         </span>
@@ -400,7 +362,7 @@ const MealRow = ({
   </button>
 );
 
-/* ─────────────────────── Corner Bracket (Scanner) ─────────────────────── */
+/* ─────────────────────── Corner Bracket ─────────────────────── */
 
 const CornerBracket = ({ position }: { position: 'tl' | 'tr' | 'bl' | 'br' }) => {
   const rotate = { tl: '', tr: 'rotate-90', bl: '-rotate-90', br: 'rotate-180' }[position];
@@ -422,13 +384,13 @@ const CornerBracket = ({ position }: { position: 'tl' | 'tr' | 'bl' | 'br' }) =>
   );
 };
 
-/* ─────────────────────── Analyzing Steps ─────────────────────── */
+/* ─────────────────────── Analyzing ─────────────────────── */
 
 const ANALYZE_STEPS = [
-  'Détection du contenu',
-  'Segmentation des ingrédients',
-  'Estimation du volume',
-  'Calcul des macronutriments',
+  'Detecting contents',
+  'Segmenting ingredients',
+  'Estimating volume',
+  'Computing macronutrients',
 ];
 
 const AnalyzingView = ({ onCancel }: { onCancel: () => void }) => {
@@ -440,22 +402,22 @@ const AnalyzingView = ({ onCancel }: { onCancel: () => void }) => {
 
   return (
     <div className="absolute inset-0 flex flex-col" style={{ background: PALETTE.carbon }}>
-      {/* Header */}
       <div className="flex items-center justify-between px-5 pt-3 pb-4">
         <button
+          type="button"
+          aria-label="Back"
           onClick={onCancel}
-          className="h-10 w-10 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
+          className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
         </button>
         <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">
-          Analyse
+          Analyzing
         </div>
-        <div className="h-10 w-10" />
+        <div className="h-11 w-11" />
       </div>
 
       <div className="flex-1 flex flex-col px-5">
-        {/* Pulsing frame */}
         <div
           className="relative w-full rounded-[28px] overflow-hidden"
           style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
@@ -485,12 +447,11 @@ const AnalyzingView = ({ onCancel }: { onCancel: () => void }) => {
                 <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping absolute" />
                 <span className="h-1.5 w-1.5 rounded-full bg-white" />
               </div>
-              <NL className="text-white tracking-[0.28em]">Analyse en cours</NL>
+              <NL className="text-white tracking-[0.28em]">Analyzing</NL>
             </div>
           </div>
         </div>
 
-        {/* Steps log */}
         <div className="mt-6 space-y-2.5">
           {ANALYZE_STEPS.map((s, i) => {
             const state = i < step ? 'done' : i === step ? 'live' : 'todo';
@@ -538,10 +499,11 @@ const AnalyzingView = ({ onCancel }: { onCancel: () => void }) => {
 
         <div className="mt-auto mb-8">
           <button
+            type="button"
             onClick={onCancel}
             className="w-full h-12 rounded-2xl border border-white/15 text-white/80 text-[11px] font-medium uppercase tracking-[0.22em] hover:bg-white/5 transition"
           >
-            Annuler l&apos;analyse
+            Cancel analysis
           </button>
         </div>
       </div>
@@ -549,7 +511,18 @@ const AnalyzingView = ({ onCancel }: { onCancel: () => void }) => {
   );
 };
 
-/* ─────────────────────── Result / Detail View ─────────────────────── */
+/* ─────────────────────── Result View ─────────────────────── */
+
+type ResultInitial =
+  | HistoryItem
+  | (NutritionResponse & {
+      id?: string;
+      time?: string;
+      portion?: number;
+      baseCalories?: number;
+      baseMacros?: { protein: number; carbs: number; fat: number };
+      estimatedWeightGrams?: number;
+    });
 
 const ResultView = ({
   initial,
@@ -561,16 +534,7 @@ const ResultView = ({
   onUpdateMacros,
   onUpdatePortion,
 }: {
-  initial:
-    | HistoryItem
-    | (NutritionResponse & {
-        id?: string;
-        time?: string;
-        portion?: number;
-        baseCalories?: number;
-        baseMacros?: { protein: number; carbs: number; fat: number };
-        estimatedWeightGrams?: number;
-      });
+  initial: ResultInitial;
   image?: string | null;
   onBack: () => void;
   onSave: (portion: number, macros: { protein: number; carbs: number; fat: number }) => void;
@@ -591,21 +555,22 @@ const ResultView = ({
   });
   const [showMicros, setShowMicros] = useState(false);
 
-  const cal = Math.round((macros.protein * 4 + macros.carbs * 4 + macros.fat * 9) * portion);
+  const cal = Math.round(caloriesFromMacros(macros.protein, macros.carbs, macros.fat) * portion);
   const macroAt = (k: 'protein' | 'carbs' | 'fat') => Math.round(macros[k] * portion);
 
-  const p = macroAt('protein') * 4;
-  const cg = macroAt('carbs') * 4;
-  const f = macroAt('fat') * 9;
-  const macroTotal = Math.max(p + cg + f, 1);
+  const proteinKcal = macroAt('protein') * 4;
+  const carbsKcal = macroAt('carbs') * 4;
+  const fatKcal = macroAt('fat') * 9;
+  const macroTotal = Math.max(proteinKcal + carbsKcal + fatKcal, 1);
 
   return (
     <div className="flex flex-col h-full" style={{ background: PALETTE.bg, color: PALETTE.fg }}>
-      {/* Header */}
       <div className="flex items-center justify-between px-5 pt-3 pb-4">
         <button
+          type="button"
+          aria-label="Back"
           onClick={onBack}
-          className="h-10 w-10 -ml-2 flex items-center justify-center rounded-full transition hover:bg-[#f3f3f2] active:scale-95"
+          className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full transition hover:opacity-70 active:scale-95"
           style={{ color: PALETTE.fg }}
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
@@ -614,15 +579,14 @@ const ResultView = ({
           className="text-[11px] font-medium uppercase tracking-[0.28em]"
           style={{ color: PALETTE.fg }}
         >
-          {mode === 'scan' ? 'Vérifier' : 'Détail repas'}
+          {mode === 'scan' ? 'Review' : 'Meal details'}
         </div>
-        <div className="h-10 w-10 -mr-2 flex items-center justify-center">
-          <NL>{mode === 'scan' ? 'Scan IA' : 'Historique'}</NL>
+        <div className="h-11 w-11 -mr-2 flex items-center justify-center">
+          <NL>{mode === 'scan' ? 'AI scan' : 'History'}</NL>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-28">
-        {/* Image strip */}
+      <div className="flex-1 overflow-y-auto pb-32">
         <div
           className="mx-5 rounded-2xl border overflow-hidden mb-4"
           style={{ borderColor: PALETTE.border }}
@@ -638,7 +602,7 @@ const ResultView = ({
             }}
           >
             {image ? (
-              <Image src={image} alt="Repas" fill className="object-cover" unoptimized />
+              <Image src={image} alt="Meal" fill className="object-cover" unoptimized />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div
@@ -650,7 +614,7 @@ const ResultView = ({
                     className="text-[10px] uppercase tracking-[0.18em]"
                     style={{ color: PALETTE.muted } as React.CSSProperties}
                   >
-                    Photo du repas
+                    Meal photo
                   </NN>
                 </div>
               </div>
@@ -658,16 +622,13 @@ const ResultView = ({
           </div>
         </div>
 
-        {/* Name */}
         <div className="px-5 mb-5">
           <div className="flex items-center gap-2 mb-1.5">
-            <NL>Repas détecté</NL>
+            <NL>Detected meal</NL>
             <div className="h-px flex-1" style={{ background: PALETTE.border }} />
-            <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-              conf. 94%
-            </NN>
           </div>
           <button
+            type="button"
             onClick={() => setEditName(true)}
             className="group w-full text-left flex items-start gap-2"
           >
@@ -705,14 +666,13 @@ const ResultView = ({
           )}
         </div>
 
-        {/* Hero calorie panel */}
         <div
           className="mx-5 mb-5 border rounded-2xl p-5"
           style={{ borderColor: PALETTE.border, background: PALETTE.surface }}
         >
           <div className="flex items-end justify-between mb-4">
             <div>
-              <NL>Énergie totale</NL>
+              <NL>Total energy</NL>
               <div className="mt-1 flex items-baseline gap-1.5">
                 <NN
                   className="text-[40px] font-medium leading-none tracking-tight"
@@ -723,9 +683,9 @@ const ResultView = ({
                 <NL className="text-[10px]">kcal</NL>
               </div>
             </div>
-            {initial.estimatedWeightGrams != null && (
+            {initial.estimatedWeightGrams != null && initial.estimatedWeightGrams > 0 && (
               <div className="text-right">
-                <NL>Densité</NL>
+                <NL>Density</NL>
                 <NN
                   className="block mt-1 text-[13px] font-medium"
                   style={{ color: PALETTE.fg } as React.CSSProperties}
@@ -735,34 +695,38 @@ const ResultView = ({
               </div>
             )}
           </div>
-          {/* Stacked distribution bar */}
           <div>
             <div
               className="flex h-2 rounded-full overflow-hidden border"
               style={{ borderColor: PALETTE.border }}
             >
-              <div style={{ width: `${(p / macroTotal) * 100}%`, background: PALETTE.fg }} />
-              <div style={{ width: `${(cg / macroTotal) * 100}%`, background: PALETTE.ink2 }} />
-              <div style={{ width: `${(f / macroTotal) * 100}%`, background: PALETTE.ink3 }} />
+              <div
+                style={{ width: `${(proteinKcal / macroTotal) * 100}%`, background: PALETTE.fg }}
+              />
+              <div
+                style={{ width: `${(carbsKcal / macroTotal) * 100}%`, background: PALETTE.ink2 }}
+              />
+              <div
+                style={{ width: `${(fatKcal / macroTotal) * 100}%`, background: PALETTE.ink3 }}
+              />
             </div>
             <div className="mt-2 flex justify-between">
               <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-                P {Math.round((p / macroTotal) * 100)}%
+                P {Math.round((proteinKcal / macroTotal) * 100)}%
               </NN>
               <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-                G {Math.round((cg / macroTotal) * 100)}%
+                C {Math.round((carbsKcal / macroTotal) * 100)}%
               </NN>
               <NN className="text-[9px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-                L {Math.round((f / macroTotal) * 100)}%
+                F {Math.round((fatKcal / macroTotal) * 100)}%
               </NN>
             </div>
           </div>
         </div>
 
-        {/* Portion segment control */}
         <div className="px-5 mb-5">
           <div className="flex items-center justify-between mb-2">
-            <NL>Fraction consommée</NL>
+            <NL>Portion consumed</NL>
             <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
               ×{portion === 1 ? '1.00' : portion.toFixed(2)}
             </NN>
@@ -773,11 +737,12 @@ const ResultView = ({
               return (
                 <button
                   key={p.label}
+                  type="button"
                   onClick={() => {
                     setPortion(p.value);
                     onUpdatePortion?.(p.value);
                   }}
-                  className={`flex-1 h-10 rounded-xl text-[12px] font-medium transition ${
+                  className={`flex-1 min-h-[44px] rounded-xl text-[12px] font-medium transition ${
                     active ? '' : 'hover:opacity-70'
                   }`}
                   style={
@@ -793,17 +758,16 @@ const ResultView = ({
           </div>
         </div>
 
-        {/* Editable macro cards */}
         <div className="px-5 mb-5">
           <div className="flex items-center justify-between mb-2">
-            <NL>Macronutriments</NL>
+            <NL>Macronutrients</NL>
           </div>
           <div className="grid grid-cols-3 gap-2">
             {(
               [
-                { k: 'protein' as const, label: 'Protéines', unit: 'g', kcalFactor: 4 },
-                { k: 'carbs' as const, label: 'Glucides', unit: 'g', kcalFactor: 4 },
-                { k: 'fat' as const, label: 'Lipides', unit: 'g', kcalFactor: 9 },
+                { k: 'protein' as const, label: 'Protein', unit: 'g', kcalFactor: 4 },
+                { k: 'carbs' as const, label: 'Carbs', unit: 'g', kcalFactor: 4 },
+                { k: 'fat' as const, label: 'Fat', unit: 'g', kcalFactor: 9 },
               ] as const
             ).map((m, idx) => {
               const isEditing = editing === m.k;
@@ -819,10 +783,13 @@ const ResultView = ({
                   <div className="flex items-center justify-between mb-2">
                     <NL className="text-[9px]">{m.label}</NL>
                     <button
+                      type="button"
+                      aria-label={`Edit ${m.label}`}
                       onClick={() => {
                         if (isEditing && onUpdateMacros) onUpdateMacros(macros);
                         setEditing(isEditing ? null : m.k);
                       }}
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center"
                       style={{ color: PALETTE.muted }}
                     >
                       {isEditing ? <Check size={12} /> : <Pencil size={11} />}
@@ -882,18 +849,18 @@ const ResultView = ({
           </div>
         </div>
 
-        {/* Micros */}
         {initial.micros && initial.micros.length > 0 && (
           <div className="px-5 mb-5">
             <button
+              type="button"
               onClick={() => setShowMicros((s) => !s)}
-              className="w-full flex items-center justify-between py-3 border-t"
+              className="w-full flex items-center justify-between py-3 border-t min-h-[44px]"
               style={{ borderColor: PALETTE.border }}
             >
-              <NL>Micronutriments</NL>
+              <NL>Micronutrients</NL>
               <div className="flex items-center gap-2" style={{ color: PALETTE.muted }}>
                 <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-                  {initial.micros.length} mesures
+                  {initial.micros.length} entries
                 </NN>
                 {showMicros ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </div>
@@ -921,13 +888,16 @@ const ResultView = ({
         )}
       </div>
 
-      {/* Footer */}
       <div
-        className="absolute left-0 right-0 bottom-0 px-5 pb-6 pt-6 pointer-events-none"
-        style={{ background: `linear-gradient(to top, ${PALETTE.bg} 50%, transparent)` }}
+        className="absolute left-0 right-0 bottom-0 px-5 pt-6 pointer-events-none"
+        style={{
+          background: `linear-gradient(to top, ${PALETTE.bg} 50%, transparent)`,
+          paddingBottom: 'calc(var(--safe-bottom) + 1.5rem)',
+        }}
       >
         <div className="pointer-events-auto flex gap-2.5">
           <button
+            type="button"
             onClick={onBack}
             className="px-4 rounded-2xl border flex items-center gap-2 active:scale-[0.98] transition hover:opacity-80"
             style={{
@@ -938,9 +908,10 @@ const ResultView = ({
             }}
           >
             <RotateCcw size={16} strokeWidth={1.75} />
-            <NL className="text-[10px]">Recommencer</NL>
+            <NL className="text-[10px]">Retake</NL>
           </button>
           <button
+            type="button"
             onClick={() => onSave(portion, macros)}
             disabled={isSaving}
             className="flex-1 rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition hover:opacity-90 disabled:opacity-50"
@@ -952,7 +923,7 @@ const ResultView = ({
               <>
                 <Check size={16} strokeWidth={2} />
                 <span className="text-[12px] font-medium uppercase tracking-[0.22em]">
-                  {mode === 'scan' ? 'Ajouter au journal' : 'Enregistrer'}
+                  {mode === 'scan' ? 'Add to log' : 'Save'}
                 </span>
               </>
             )}
@@ -965,6 +936,14 @@ const ResultView = ({
 
 /* ─────────────────────── Settings Sheet ─────────────────────── */
 
+interface NutritionProfileSnapshot {
+  height: number;
+  age: number;
+  gender: Gender;
+  activityLevel: number;
+  goal: GoalType;
+}
+
 const SettingsSheet = ({
   open,
   onClose,
@@ -976,18 +955,12 @@ const SettingsSheet = ({
   open: boolean;
   onClose: () => void;
   bodyWeight: number;
-  nutritionProfile: {
-    height: number;
-    age: number;
-    gender: GenderType;
-    activityLevel: number;
-    goal: GoalType;
-  };
+  nutritionProfile: NutritionProfileSnapshot;
   onSave: (data: {
     weight: number;
     height: number;
     age: number;
-    gender: GenderType;
+    gender: Gender;
     activity: number;
     goal: GoalType;
   }) => void;
@@ -996,7 +969,7 @@ const SettingsSheet = ({
   const [weight, setWeight] = useState(bodyWeight);
   const [height, setHeight] = useState(nutritionProfile.height);
   const [age, setAge] = useState(nutritionProfile.age);
-  const [gender, setGender] = useState<GenderType>(nutritionProfile.gender);
+  const [gender, setGender] = useState<Gender>(nutritionProfile.gender);
   const [activity, setActivity] = useState(nutritionProfile.activityLevel);
   const [goal, setGoal] = useState<GoalType>(nutritionProfile.goal);
 
@@ -1004,7 +977,7 @@ const SettingsSheet = ({
 
   return (
     <div className="absolute inset-0 z-50 flex items-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div role="presentation" className="absolute inset-0 bg-black/30" onClick={onClose} />
       <div
         className="relative w-full rounded-t-[28px] border-t max-h-[88%] overflow-y-auto"
         style={{ background: PALETTE.bg, borderColor: PALETTE.border }}
@@ -1014,11 +987,13 @@ const SettingsSheet = ({
         </div>
         <div className="px-5 pb-2 pt-1 flex items-center justify-between">
           <div className="text-[16px] font-medium" style={{ color: PALETTE.fg }}>
-            Paramètres
+            Settings
           </div>
           <button
+            type="button"
+            aria-label="Close"
             onClick={onClose}
-            className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-[#f3f3f2]"
+            className="h-11 w-11 rounded-full flex items-center justify-center hover:opacity-70"
             style={{ color: PALETTE.fg }}
           >
             <X size={16} />
@@ -1029,9 +1004,9 @@ const SettingsSheet = ({
         <div className="px-5 py-5 space-y-6">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { l: 'Poids', val: weight, set: setWeight, u: 'kg' },
-              { l: 'Taille', val: height, set: setHeight, u: 'cm' },
-              { l: 'Âge', val: age, set: setAge, u: 'ans' },
+              { l: 'Weight', val: weight, set: setWeight, u: 'kg' },
+              { l: 'Height', val: height, set: setHeight, u: 'cm' },
+              { l: 'Age', val: age, set: setAge, u: 'yrs' },
             ].map((f) => (
               <div
                 key={f.l}
@@ -1052,20 +1027,21 @@ const SettingsSheet = ({
               </div>
             ))}
             <div className="border rounded-xl p-3" style={{ borderColor: PALETTE.border }}>
-              <NL>Sexe</NL>
+              <NL>Sex</NL>
               <div className="mt-2 flex gap-1">
-                {(['M', 'F'] as GenderType[]).map((g) => (
+                {(['male', 'female'] as Gender[]).map((g) => (
                   <button
                     key={g}
+                    type="button"
                     onClick={() => setGender(g)}
-                    className="flex-1 h-8 rounded-lg text-[12px] font-medium transition"
+                    className="flex-1 min-h-[44px] rounded-lg text-[12px] font-medium transition"
                     style={
                       gender === g
                         ? { background: PALETTE.fg, color: PALETTE.bg }
                         : { color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }
                     }
                   >
-                    {g === 'M' ? 'Homme' : 'Femme'}
+                    {g === 'male' ? 'Male' : 'Female'}
                   </button>
                 ))}
               </div>
@@ -1073,17 +1049,20 @@ const SettingsSheet = ({
           </div>
 
           <div>
-            <NL className="mb-2 block">Objectif</NL>
+            <NL className="mb-2 block">Goal</NL>
             <div className="grid grid-cols-3 gap-2">
-              {[
-                { k: 'cut' as GoalType, l: 'Sèche' },
-                { k: 'maintain' as GoalType, l: 'Maintien' },
-                { k: 'bulk' as GoalType, l: 'Prise' },
-              ].map((g) => (
+              {(
+                [
+                  { k: 'cut' as GoalType, l: 'Cut' },
+                  { k: 'maintain' as GoalType, l: 'Maintain' },
+                  { k: 'bulk' as GoalType, l: 'Bulk' },
+                ] as const
+              ).map((g) => (
                 <button
                   key={g.k}
+                  type="button"
                   onClick={() => setGoal(g.k)}
-                  className="h-11 rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
+                  className="min-h-[44px] rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
                   style={
                     goal === g.k
                       ? { background: PALETTE.fg, color: PALETTE.bg, borderColor: PALETTE.fg }
@@ -1097,30 +1076,27 @@ const SettingsSheet = ({
           </div>
 
           <div>
-            <NL className="mb-2 block">Activité</NL>
+            <NL className="mb-2 block">Activity</NL>
             <div className="space-y-2">
-              {[
-                { v: 1.2, l: 'Sédentaire', s: '0 séance' },
-                { v: 1.55, l: 'Modéré', s: '1–3 séances' },
-                { v: 1.75, l: 'Très actif', s: '4+ séances' },
-              ].map((a) => {
-                const active = Math.abs(activity - a.v) < 0.01;
+              {ACTIVITY_OPTIONS.map((a) => {
+                const active = Math.abs(activity - a.value) < 0.01;
                 return (
                   <button
-                    key={a.v}
-                    onClick={() => setActivity(a.v)}
-                    className="w-full h-12 px-4 rounded-xl border flex items-center justify-between transition"
+                    key={a.value}
+                    type="button"
+                    onClick={() => setActivity(a.value)}
+                    className="w-full min-h-[48px] px-4 rounded-xl border flex items-center justify-between transition"
                     style={{ borderColor: active ? PALETTE.fg : PALETTE.border }}
                   >
                     <span className="text-[13px] font-medium" style={{ color: PALETTE.fg }}>
-                      {a.l}
+                      {a.label}
                     </span>
                     <div className="flex items-center gap-3">
                       <NN
                         className="text-[10px]"
                         style={{ color: PALETTE.muted } as React.CSSProperties}
                       >
-                        {a.s}
+                        {a.sub}
                       </NN>
                       <span
                         className="h-3.5 w-3.5 rounded-full border"
@@ -1138,12 +1114,13 @@ const SettingsSheet = ({
           </div>
 
           <button
+            type="button"
             onClick={() => onSave({ weight, height, age, gender, activity, goal })}
             disabled={isSaving}
             className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] disabled:opacity-50 transition"
             style={{ background: PALETTE.fg, color: PALETTE.bg }}
           >
-            {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Enregistrer'}
+            {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Save'}
           </button>
         </div>
       </div>
@@ -1180,7 +1157,7 @@ const ManualSheet = ({
 
   const handleSave = () => {
     if (!name || !calories || !protein || !carbs || !fat) {
-      toast.error('Veuillez remplir tous les champs.');
+      toast.error('Please fill in every field.');
       return;
     }
     onSave({
@@ -1199,7 +1176,7 @@ const ManualSheet = ({
 
   return (
     <div className="absolute inset-0 z-50 flex items-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div role="presentation" className="absolute inset-0 bg-black/30" onClick={onClose} />
       <div
         className="relative w-full rounded-t-[28px] border-t max-h-[88%] overflow-y-auto"
         style={{ background: PALETTE.bg, borderColor: PALETTE.border }}
@@ -1209,11 +1186,13 @@ const ManualSheet = ({
         </div>
         <div className="px-5 pb-2 pt-1 flex items-center justify-between">
           <div className="text-[16px] font-medium" style={{ color: PALETTE.fg }}>
-            Saisie manuelle
+            Manual entry
           </div>
           <button
+            type="button"
+            aria-label="Close"
             onClick={onClose}
-            className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-[#f3f3f2]"
+            className="h-11 w-11 rounded-full flex items-center justify-center hover:opacity-70"
             style={{ color: PALETTE.fg }}
           >
             <X size={16} />
@@ -1223,12 +1202,12 @@ const ManualSheet = ({
 
         <div className="px-5 py-5 space-y-4">
           <div>
-            <NL className="block mb-1.5">Nom du repas</NL>
+            <NL className="block mb-1.5">Meal name</NL>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ex : Shaker protéiné"
-              className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[15px] font-medium"
+              placeholder="e.g. Protein shake"
+              className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[16px] font-medium"
               style={{ borderColor: PALETTE.border, color: PALETTE.fg }}
             />
           </div>
@@ -1245,9 +1224,9 @@ const ManualSheet = ({
           </div>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label: 'Protéines', val: protein, set: setProtein },
-              { label: 'Glucides', val: carbs, set: setCarbs },
-              { label: 'Lipides', val: fat, set: setFat },
+              { label: 'Protein', val: protein, set: setProtein },
+              { label: 'Carbs', val: carbs, set: setCarbs },
+              { label: 'Fat', val: fat, set: setFat },
             ].map((f) => (
               <div key={f.label}>
                 <NL className="block mb-1.5 text-[9px]">{f.label} (g)</NL>
@@ -1256,24 +1235,216 @@ const ManualSheet = ({
                   value={f.val}
                   onChange={(e) => f.set(e.target.value)}
                   placeholder="0"
-                  className="w-full h-10 px-2 rounded-xl border bg-transparent outline-none font-mono tabular-nums text-[18px] font-medium text-center"
+                  className="w-full h-12 px-2 rounded-xl border bg-transparent outline-none font-mono tabular-nums text-[18px] font-medium text-center"
                   style={{ borderColor: PALETTE.border, color: PALETTE.fg }}
                 />
               </div>
             ))}
           </div>
           <button
+            type="button"
             onClick={handleSave}
             disabled={isSaving}
             className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] mt-2 disabled:opacity-50"
             style={{ background: PALETTE.fg, color: PALETTE.bg }}
           >
-            {isSaving ? (
-              <Loader2 size={16} className="animate-spin mx-auto" />
-            ) : (
-              'Ajouter au journal'
-            )}
+            {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Add to log'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── Barcode Lookup ─────────────────────── */
+
+async function lookupBarcode(barcode: string): Promise<NutritionResponse | null> {
+  try {
+    const res = await fetch(
+      `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(barcode)}.json`
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      status: number;
+      product?: {
+        product_name?: string;
+        nutriments?: Record<string, unknown>;
+      };
+    };
+    if (data.status !== 1 || !data.product) return null;
+    const p = data.product;
+    const n = (p.nutriments ?? {}) as Record<string, number>;
+    const kcal =
+      n['energy-kcal_100g'] ?? n['energy-kcal'] ?? Math.round((n['energy_100g'] ?? 0) / 4.184);
+    return {
+      mealName: p.product_name || `Barcode ${barcode}`,
+      calories: Math.round(Number(kcal) || 0),
+      macros: {
+        protein: Math.round(Number(n['proteins_100g']) || 0),
+        carbs: Math.round(Number(n['carbohydrates_100g']) || 0),
+        fat: Math.round(Number(n['fat_100g']) || 0),
+      },
+      micros: [],
+      estimatedWeightGrams: 100,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* ─────────────────────── BarcodeReaderView ─────────────────────── */
+
+const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => void }) => {
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const onDetectedRef = React.useRef(onDetected);
+  const [permState, setPermState] = React.useState<
+    'checking' | 'granted' | 'denied' | 'unavailable'
+  >('checking');
+  const [retryCount, setRetryCount] = React.useState(0);
+
+  React.useEffect(() => {
+    onDetectedRef.current = onDetected;
+  });
+
+  React.useEffect(() => {
+    if (!videoRef.current) return;
+    let stopped = false;
+    let stream: MediaStream | null = null;
+    let stopReader: (() => void) | null = null;
+
+    const start = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setPermState('unavailable');
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+        });
+        if (stopped) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        setPermState('granted');
+      } catch (err) {
+        if (stopped) return;
+        const name = err instanceof Error ? err.name : '';
+        setPermState(
+          name === 'NotAllowedError' || name === 'PermissionDeniedError' ? 'denied' : 'unavailable'
+        );
+        return;
+      }
+
+      try {
+        const { BrowserMultiFormatReader } = await import('@zxing/browser');
+        if (stopped) {
+          stream?.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        const reader = new BrowserMultiFormatReader();
+        reader
+          .decodeFromStream(stream!, videoRef.current!, (result, _err, controls) => {
+            if (result && !stopped) {
+              stopped = true;
+              controls.stop();
+              onDetectedRef.current(result.getText());
+            }
+            if (!stopReader) stopReader = () => controls.stop();
+          })
+          .then((controls) => {
+            if (!stopReader) stopReader = () => controls.stop();
+            if (stopped) controls.stop();
+          })
+          .catch(() => {
+            if (!stopped) setPermState('unavailable');
+          });
+      } catch {
+        if (!stopped) setPermState('unavailable');
+        stream?.getTracks().forEach((t) => t.stop());
+      }
+    };
+
+    start();
+
+    return () => {
+      stopped = true;
+      stopReader?.();
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [retryCount]);
+
+  if (permState === 'denied') {
+    return (
+      <div
+        className="relative w-full rounded-[28px] overflow-hidden flex flex-col items-center justify-center gap-5 px-8 text-center"
+        style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
+      >
+        <Camera size={36} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.3)' }} />
+        <p className="text-[12px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          Camera access is required to scan barcodes.
+          <br />
+          Enable it in your browser or device settings.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setPermState('checking');
+            setRetryCount((c) => c + 1);
+          }}
+          className="px-5 py-2.5 rounded-full border border-white/20 text-[11px] uppercase tracking-[0.2em] hover:bg-white/5 transition"
+          style={{ color: 'rgba(255,255,255,0.7)' }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (permState === 'unavailable') {
+    return (
+      <div
+        className="relative w-full rounded-[28px] overflow-hidden flex flex-col items-center justify-center gap-4 px-8 text-center"
+        style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
+      >
+        <Camera size={36} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.2)' }} />
+        <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          Camera unavailable on this device.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="relative w-full rounded-[28px] overflow-hidden"
+      style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
+    >
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-cover"
+        playsInline
+        muted
+      />
+      {permState === 'checking' && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2
+            size={24}
+            strokeWidth={1.5}
+            className="animate-spin"
+            style={{ color: 'rgba(255,255,255,0.4)' }}
+          />
+        </div>
+      )}
+      <div className="absolute inset-4 text-white/80">
+        <CornerBracket position="tl" />
+        <CornerBracket position="tr" />
+        <CornerBracket position="bl" />
+        <CornerBracket position="br" />
+      </div>
+      <div className="absolute bottom-4 left-0 right-0 text-center">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+          <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+          <NL className="text-white/80 text-[9px] tracking-[0.22em]">Point at a barcode</NL>
         </div>
       </div>
     </div>
@@ -1283,30 +1454,65 @@ const ManualSheet = ({
 /* ─────────────────────── Main Page ─────────────────────── */
 
 type ViewType = 'dashboard' | 'scanner' | 'analyzing' | 'result' | 'detail';
+type ScanMode = 'ai' | 'gallery' | 'barcode';
 
-export default function NutritionPage() {
+const SCAN_TABS: { k: ScanMode; l: string }[] = [
+  { k: 'gallery', l: 'Gallery' },
+  { k: 'ai', l: 'AI scan' },
+  { k: 'barcode', l: 'Barcode' },
+];
+
+export interface NutritionScreenProps {
+  /** Called when the user taps the dashboard back button. Defaults to router.back(). */
+  onBack?: () => void;
+  /**
+   * Extra pixels of space the screen should leave at the bottom (e.g. when rendered
+   * inside the main app behind a BottomNav). Default: 0.
+   */
+  bottomInset?: number;
+  /** Hides the dashboard back button entirely (use when navigation is handled outside). */
+  hideBackButton?: boolean;
+  /** Notifies the parent whenever the internal view changes (useful for hiding BottomNav). */
+  onViewChange?: (view: string) => void;
+}
+
+export function NutritionScreen({
+  onBack,
+  bottomInset = 0,
+  hideBackButton = false,
+  onViewChange,
+}: NutritionScreenProps = {}) {
   useSkin();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBack = onBack ?? (() => router.back());
 
   const { profile: appProfile, updateBodyweight, updateProfile } = useStore();
   const bodyWeight = appProfile?.body_weight || 80;
 
-  const nutritionProfile = {
-    height: appProfile?.height || 180,
-    age: calculateAge(appProfile?.birth_date || ''),
-    gender: (appProfile?.gender === 'Homme' ? 'M' : 'F') as GenderType,
-    activityLevel: appProfile?.activity_level || 1.55,
-    goal: (appProfile?.goal_program || 'maintain') as GoalType,
-  };
+  const nutritionProfile = useMemo<NutritionProfileSnapshot>(
+    () => ({
+      height: appProfile?.height ?? 180,
+      age: calculateAge(appProfile?.birth_date ?? ''),
+      gender: appProfile?.gender ?? 'male',
+      activityLevel: appProfile?.activity_level ?? 1.55,
+      goal: appProfile?.goal_program ?? 'maintain',
+    }),
+    [appProfile]
+  );
 
-  const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros } = useNutritionStore();
+  const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros, fetchMeals } =
+    useNutritionStore();
 
-  const [isHydrated, setIsHydrated] = useState(false);
+  const isHydrated = useIsHydrated();
+
   useEffect(() => {
-    const timer = setTimeout(() => setIsHydrated(true), 0);
-    return () => clearTimeout(timer);
-  }, []);
+    if (appProfile?.user_id) {
+      fetchMeals(appProfile.user_id);
+    }
+  }, [appProfile?.user_id, fetchMeals]);
 
   const [view, setView] = useState<ViewType>('dashboard');
   const [image, setImage] = useState<string | null>(null);
@@ -1315,32 +1521,61 @@ export default function NutritionPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [scanMode, setScanMode] = useState<ScanMode>('ai');
+
+  const changeView = (newView: ViewType) => {
+    setView(newView);
+    onViewChange?.(newView);
+  };
+
+  const handleBarcodeDetected = async (barcode: string) => {
+    changeView('analyzing');
+    try {
+      const result = await lookupBarcode(barcode);
+      if (!result) {
+        toast.error('Product not found in database.');
+        changeView('scanner');
+        return;
+      }
+      setScanResult(result);
+      setImage(null);
+      changeView('result');
+    } catch {
+      toast.error('Barcode lookup failed.');
+      changeView('scanner');
+    }
+  };
+
+  const todayMeals = useMemo(() => {
+    const today = new Date().toDateString();
+    return meals.filter((m) => new Date(m.timestamp).toDateString() === today);
+  }, [meals]);
 
   const targets = useMemo(
     () =>
       calculateTargets(
-        appProfile?.height || 180,
-        calculateAge(appProfile?.birth_date || ''),
-        appProfile?.gender || 'Homme',
-        appProfile?.activity_level || 1.55,
-        appProfile?.goal_program || 'maintain',
+        nutritionProfile.height,
+        nutritionProfile.age,
+        nutritionProfile.gender,
+        nutritionProfile.activityLevel,
+        nutritionProfile.goal,
         bodyWeight
       ),
-    [appProfile, bodyWeight]
+    [nutritionProfile, bodyWeight]
   );
 
   const totals = useMemo(
     () =>
-      meals.reduce(
-        (a, m) => ({
-          calories: a.calories + m.calories,
-          protein: a.protein + m.macros.protein,
-          carbs: a.carbs + m.macros.carbs,
-          fat: a.fat + m.macros.fat,
+      todayMeals.reduce(
+        (acc, meal) => ({
+          calories: acc.calories + meal.calories,
+          protein: acc.protein + meal.macros.protein,
+          carbs: acc.carbs + meal.macros.carbs,
+          fat: acc.fat + meal.macros.fat,
         }),
         { calories: 0, protein: 0, carbs: 0, fat: 0 }
       ),
-    [meals]
+    [todayMeals]
   );
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1350,20 +1585,21 @@ export default function NutritionPage() {
       const compressed = await compressImage(file);
       setImage(compressed);
       setScanResult(null);
-      setView('analyzing');
+      changeView('analyzing');
       const response = await fetch('/api/nutrition/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: compressed }),
       });
-      if (!response.ok) throw new Error('Analyse échouée');
+      if (!response.ok) throw new Error('Scan request failed');
       const data: NutritionResponse = await response.json();
       setScanResult(data);
-      setView('result');
-    } catch {
-      toast.error("L'IA n'a pas pu analyser cette image.");
+      changeView('result');
+    } catch (error) {
+      console.error('Scan capture failed', error);
+      toast.error('The AI could not analyze this image.');
       setImage(null);
-      setView('scanner');
+      changeView('scanner');
     }
   };
 
@@ -1374,7 +1610,7 @@ export default function NutritionPage() {
     if (!scanResult) return;
     setIsSaving(true);
     const finalCalories = Math.round(
-      (macros.protein * 4 + macros.carbs * 4 + macros.fat * 9) * portion
+      caloriesFromMacros(macros.protein, macros.carbs, macros.fat) * portion
     );
     const finalProtein = Math.round(macros.protein * portion);
     const finalCarbs = Math.round(macros.carbs * portion);
@@ -1384,29 +1620,34 @@ export default function NutritionPage() {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
+
       if (authError || !user) {
         toast.error('Session expirée, veuillez vous reconnecter.');
         await supabase.auth.signOut();
         router.push('/login');
         return;
       }
-      await supabase.from('nutrition_logs').insert({
-        user_id: user.id,
-        meal_name: scanResult.mealName,
-        calories: finalCalories,
-        protein: finalProtein,
-        carbs: finalCarbs,
-        fat: finalFat,
-        micros: scanResult.micros,
-        image_url: image,
-      });
-
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const { data: insertLog } = await supabase
+        .from('nutrition_logs')
+        .insert({
+          user_id: user.id,
+          meal_name: scanResult.mealName,
+          calories: finalCalories,
+          protein: finalProtein,
+          carbs: finalCarbs,
+          fat: finalFat,
+          micros: scanResult.micros,
+          image_url: image,
+        })
+        .select('id, created_at')
+        .single();
+      const log = insertLog as { id: string; created_at: string } | null;
+      const now = log?.created_at ? new Date(log.created_at) : new Date();
+      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       addMeal({
-        id: Math.random().toString(36).substring(2, 9),
+        id: log?.id ?? Math.random().toString(36).substring(2, 9),
         time: timeStr,
-        timestamp: Date.now(),
+        timestamp: now.getTime(),
         mealName: scanResult.mealName,
         calories: finalCalories,
         macros: { protein: finalProtein, carbs: finalCarbs, fat: finalFat },
@@ -1416,12 +1657,13 @@ export default function NutritionPage() {
         baseMacros: macros,
         estimatedWeightGrams: scanResult.estimatedWeightGrams,
       });
-      toast.success('Repas enregistré !');
+      toast.success('Meal saved.');
       setImage(null);
       setScanResult(null);
-      setView('dashboard');
-    } catch {
-      toast.error("Erreur lors de l'enregistrement.");
+      changeView('dashboard');
+    } catch (error) {
+      console.error('Meal save failed', error);
+      toast.error('Save failed.');
     } finally {
       setIsSaving(false);
     }
@@ -1431,7 +1673,7 @@ export default function NutritionPage() {
     weight: number;
     height: number;
     age: number;
-    gender: GenderType;
+    gender: Gender;
     activity: number;
     goal: GoalType;
   }) => {
@@ -1440,14 +1682,15 @@ export default function NutritionPage() {
       if (data.weight !== bodyWeight) await updateBodyweight(data.weight);
       await updateProfile({
         height: data.height,
-        gender: data.gender === 'M' ? 'Homme' : 'Femme',
+        gender: data.gender,
         activity_level: data.activity,
         goal_program: data.goal,
       });
-      toast.success('Paramètres mis à jour !');
+      toast.success('Settings updated.');
       setSettingsOpen(false);
-    } catch {
-      toast.error('Erreur lors de la mise à jour');
+    } catch (error) {
+      console.error('Settings save failed', error);
+      toast.error('Update failed.');
     } finally {
       setIsSaving(false);
     }
@@ -1472,33 +1715,38 @@ export default function NutritionPage() {
         router.push('/login');
         return;
       }
-      await supabase.from('nutrition_logs').insert({
-        user_id: user.id,
-        meal_name: data.name,
-        calories: data.calories,
-        protein: data.protein,
-        carbs: data.carbs,
-        fat: data.fat,
-        micros: [],
-        image_url: null,
-      });
-
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const { data: insertLog } = await supabase
+        .from('nutrition_logs')
+        .insert({
+          user_id: user.id,
+          meal_name: data.name,
+          calories: data.calories,
+          protein: data.protein,
+          carbs: data.carbs,
+          fat: data.fat,
+          micros: [],
+          image_url: null,
+        })
+        .select('id, created_at')
+        .single();
+      const log = insertLog as { id: string; created_at: string } | null;
+      const now = log?.created_at ? new Date(log.created_at) : new Date();
+      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       addMeal({
-        id: Math.random().toString(36).substring(2, 9),
+        id: log?.id ?? Math.random().toString(36).substring(2, 9),
         time: timeStr,
-        timestamp: Date.now(),
+        timestamp: now.getTime(),
         mealName: data.name,
         calories: data.calories,
         macros: { protein: data.protein, carbs: data.carbs, fat: data.fat },
         micros: [],
         portion: 1,
       });
-      toast.success('Repas ajouté !');
+      toast.success('Meal added.');
       setManualOpen(false);
-    } catch {
-      toast.error("Erreur lors de l'ajout manuel.");
+    } catch (error) {
+      console.error('Manual save failed', error);
+      toast.error('Could not add the meal.');
     } finally {
       setIsSaving(false);
     }
@@ -1506,28 +1754,32 @@ export default function NutritionPage() {
 
   const handleDelete = (id: string) => {
     removeMeal(id);
-    toast.success('Repas supprimé.');
+    toast.success('Meal removed.');
   };
 
   const openMealDetail = (meal: HistoryItem) => {
     setSelectedMeal(meal);
-    setView('detail');
+    changeView('detail');
   };
 
   if (!isHydrated) return null;
 
-  /* ── Dashboard ── */
   const renderDashboard = () => (
     <div className="flex flex-col h-full" style={{ background: PALETTE.bg }}>
-      {/* Header */}
       <div className="flex items-center justify-between px-5 pt-3 pb-4">
-        <button
-          onClick={() => router.back()}
-          className="h-10 w-10 -ml-2 flex items-center justify-center rounded-full transition hover:bg-[#f3f3f2] active:scale-95"
-          style={{ color: PALETTE.fg }}
-        >
-          <ChevronLeft size={22} strokeWidth={1.75} />
-        </button>
+        {hideBackButton ? (
+          <div className="h-11 w-11" />
+        ) : (
+          <button
+            type="button"
+            aria-label="Back"
+            onClick={handleBack}
+            className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full transition active:scale-95 hover:opacity-70"
+            style={{ color: PALETTE.fg }}
+          >
+            <ChevronLeft size={22} strokeWidth={1.75} />
+          </button>
+        )}
         <div
           className="text-[11px] font-medium uppercase tracking-[0.28em]"
           style={{ color: PALETTE.fg }}
@@ -1535,26 +1787,27 @@ export default function NutritionPage() {
           Nutrition
         </div>
         <button
+          type="button"
+          aria-label="Open settings"
           onClick={() => setSettingsOpen(true)}
-          className="h-10 w-10 -mr-2 flex items-center justify-center rounded-full transition hover:bg-[#f3f3f2] active:scale-95"
+          className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full transition hover:opacity-70 active:scale-95"
           style={{ color: PALETTE.fg }}
         >
           <SettingsIcon size={20} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-32">
-        {/* Date strip */}
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: `${bottomInset + 160}px` }}>
         <div className="px-5 mb-4 flex items-center justify-between">
           <div>
             <div className="text-[20px] font-medium leading-tight" style={{ color: PALETTE.fg }}>
-              Aujourd&apos;hui
+              Today
             </div>
             <NN
               className="text-[11px] tracking-[0.05em]"
               style={{ color: PALETTE.muted } as React.CSSProperties}
             >
-              {new Date().toLocaleDateString('fr-FR', {
+              {new Date().toLocaleDateString('en-US', {
                 weekday: 'short',
                 day: 'numeric',
                 month: 'long',
@@ -1573,20 +1826,17 @@ export default function NutritionPage() {
           </div>
         </div>
 
-        {/* Ring */}
         <div className="py-2">
           <CalorieRing consumed={totals.calories} goal={targets.targetCalories} />
         </div>
 
-        {/* Stat strip */}
         <div
-          className="mx-5 mt-5 mb-7 grid grid-cols-3 border rounded-2xl overflow-hidden"
+          className="mx-5 mt-5 mb-7 grid grid-cols-2 border rounded-2xl overflow-hidden"
           style={{ borderColor: PALETTE.border }}
         >
           {[
-            { l: 'Repas', v: meals.length, s: 'log' },
-            { l: 'Brûlées', v: 412, s: 'kcal' },
-            { l: 'Net', v: totals.calories - 412, s: 'kcal' },
+            { l: 'Meals', v: todayMeals.length, s: 'logged' },
+            { l: 'Remaining', v: Math.max(0, targets.targetCalories - totals.calories), s: 'kcal' },
           ].map((s, i) => (
             <div
               key={s.l}
@@ -1609,49 +1859,47 @@ export default function NutritionPage() {
           ))}
         </div>
 
-        {/* Macros */}
         <div className="px-5 mb-8">
           <div className="flex items-center justify-between mb-4">
-            <NL>Macronutriments</NL>
+            <NL>Macronutrients</NL>
             <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-              P·G·L &nbsp; 30 / 45 / 25
+              P · C · F
             </NN>
           </div>
           <div className="space-y-5">
             <MacroBar
-              label="Protéines"
+              label="Protein"
               current={totals.protein}
               target={targets.targetProtein}
               shade="fg"
             />
             <MacroBar
-              label="Glucides"
+              label="Carbs"
               current={totals.carbs}
               target={targets.targetCarbs}
               shade="mid"
             />
-            <MacroBar label="Lipides" current={totals.fat} target={targets.targetFat} shade="low" />
+            <MacroBar label="Fat" current={totals.fat} target={targets.targetFat} shade="low" />
           </div>
         </div>
 
-        {/* Food log */}
         <div className="px-5">
           <div className="flex items-center justify-between mb-2">
-            <NL>Journal du jour</NL>
+            <NL>Today&apos;s log</NL>
             <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
-              {meals.length} entrées
+              {todayMeals.length} entries
             </NN>
           </div>
           <div
             className="border rounded-2xl overflow-hidden"
             style={{ borderColor: PALETTE.border, background: PALETTE.surface }}
           >
-            {meals.length === 0 ? (
+            {todayMeals.length === 0 ? (
               <div className="py-8 text-center">
-                <NL>Aucun repas enregistré</NL>
+                <NL>No meals logged</NL>
               </div>
             ) : (
-              meals.map((m, i) => (
+              todayMeals.map((m, i) => (
                 <div
                   key={m.id}
                   style={i > 0 ? { borderTop: `1px solid ${PALETTE.border}` } : undefined}
@@ -1664,120 +1912,168 @@ export default function NutritionPage() {
         </div>
       </div>
 
-      {/* FABs */}
       <div
-        className="absolute left-0 right-0 bottom-0 px-5 pb-6 pt-10 pointer-events-none"
-        style={{ background: `linear-gradient(to top, ${PALETTE.bg} 60%, transparent)` }}
+        className="absolute left-0 right-0 px-5 pt-10 pointer-events-none"
+        style={{
+          bottom: `${bottomInset}px`,
+          background: `linear-gradient(to top, ${PALETTE.bg} 60%, transparent)`,
+          paddingBottom: 'calc(var(--safe-bottom) + 1.5rem)',
+        }}
       >
         <div className="pointer-events-auto flex gap-2.5">
           <button
+            type="button"
             onClick={() => setManualOpen(true)}
-            className="h-14 px-4 rounded-2xl border flex items-center gap-2 active:scale-[0.98] transition hover:bg-[#f3f3f2]"
+            className="h-14 px-4 rounded-2xl border flex items-center gap-2 active:scale-[0.98] transition hover:opacity-80"
             style={{ borderColor: PALETTE.border, background: PALETTE.surface, color: PALETTE.fg }}
           >
             <Plus size={18} strokeWidth={1.75} />
-            <span className="text-[11px] font-medium uppercase tracking-[0.18em]">Manuel</span>
+            <span className="text-[11px] font-medium uppercase tracking-[0.18em]">Manual</span>
           </button>
           <button
-            onClick={() => {
-              setView('scanner');
-            }}
+            type="button"
+            onClick={() => changeView('scanner')}
             className="h-14 flex-1 rounded-2xl flex items-center justify-center gap-2.5 active:scale-[0.98] transition hover:opacity-90"
             style={{ background: PALETTE.fg, color: PALETTE.bg }}
           >
             <Camera size={18} strokeWidth={1.75} />
-            <span className="text-[12px] font-medium uppercase tracking-[0.22em]">Scan repas</span>
+            <span className="text-[12px] font-medium uppercase tracking-[0.22em]">Scan meal</span>
           </button>
         </div>
       </div>
     </div>
   );
 
-  /* ── Scanner ── */
   const renderScanner = () => (
     <div className="absolute inset-0 flex flex-col" style={{ background: PALETTE.carbon }}>
       <div className="flex items-center justify-between px-5 pt-3 pb-4">
         <button
-          onClick={() => setView('dashboard')}
-          className="h-10 w-10 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
+          type="button"
+          aria-label="Back"
+          onClick={() => changeView('dashboard')}
+          className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
         </button>
         <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">
           Scanner
         </div>
-        <div className="h-10 w-10 -mr-2 flex items-center justify-center text-white/40">
+        <button
+          type="button"
+          aria-label="Open camera"
+          onClick={() => {
+            setScanMode('ai');
+            fileInputRef.current?.click();
+          }}
+          className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
+        >
           <Camera size={18} />
-        </div>
+        </button>
       </div>
 
       <div className="flex-1 flex items-center justify-center px-6">
-        <div
-          className="relative w-full rounded-[28px] overflow-hidden"
-          style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
-        >
+        {scanMode === 'barcode' ? (
+          <BarcodeReaderView onDetected={handleBarcodeDetected} />
+        ) : (
           <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: `repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 8px, transparent 8px 16px)`,
-            }}
-          />
-          {/* Rule-of-thirds grid */}
-          <div className="absolute inset-0 flex">
-            <div className="flex-1 border-r border-white/5" />
-            <div className="flex-1 border-r border-white/5" />
-            <div className="flex-1" />
-          </div>
-          <div className="absolute inset-0 flex flex-col">
-            <div className="flex-1 border-b border-white/5" />
-            <div className="flex-1 border-b border-white/5" />
-            <div className="flex-1" />
-          </div>
-          {/* Corner brackets */}
-          <div className="absolute inset-4 text-white/80">
-            <CornerBracket position="tl" />
-            <CornerBracket position="tr" />
-            <CornerBracket position="bl" />
-            <CornerBracket position="br" />
-          </div>
-          {/* Reticle */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="h-px w-3 bg-white/40" />
-            <div className="absolute h-3 w-px bg-white/40" />
-            <div className="absolute h-10 w-10 rounded-full border border-white/15" />
-          </div>
-          <div className="absolute bottom-4 left-0 right-0 text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
-              <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-              <NL className="text-white/80 text-[9px] tracking-[0.22em]">Cadrer le plat</NL>
+            className="relative w-full rounded-[28px] overflow-hidden"
+            style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  'repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 8px, transparent 8px 16px)',
+              }}
+            />
+            <div className="absolute inset-0 flex">
+              <div className="flex-1 border-r border-white/5" />
+              <div className="flex-1 border-r border-white/5" />
+              <div className="flex-1" />
+            </div>
+            <div className="absolute inset-0 flex flex-col">
+              <div className="flex-1 border-b border-white/5" />
+              <div className="flex-1 border-b border-white/5" />
+              <div className="flex-1" />
+            </div>
+            <div className="absolute inset-4 text-white/80">
+              <CornerBracket position="tl" />
+              <CornerBracket position="tr" />
+              <CornerBracket position="bl" />
+              <CornerBracket position="br" />
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-px w-3 bg-white/40" />
+              <div className="absolute h-3 w-px bg-white/40" />
+              <div className="absolute h-10 w-10 rounded-full border border-white/15" />
+            </div>
+            <div className="absolute bottom-4 left-0 right-0 text-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+                <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                <NL className="text-white/80 text-[9px] tracking-[0.22em]">
+                  {scanMode === 'gallery' ? 'Select from gallery' : 'Frame the dish'}
+                </NL>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
-      <div className="px-6 pb-10 pt-4">
+      <div className="px-6 pt-4" style={{ paddingBottom: 'calc(var(--safe-bottom) + 2.5rem)' }}>
         <div className="flex items-center justify-center gap-6 mb-6">
-          <NL className="text-white/40 tracking-[0.22em]">Galerie</NL>
-          <NL className="text-white tracking-[0.22em]">Scan IA</NL>
-          <NL className="text-white/40 tracking-[0.22em]">Code-barres</NL>
+          {SCAN_TABS.map(({ k, l }) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setScanMode(k)}
+              className="min-h-[44px] px-2 transition active:opacity-60"
+            >
+              <NL
+                className={`tracking-[0.22em] transition ${scanMode === k ? '' : 'opacity-40'}`}
+                style={{ color: 'white' }}
+              >
+                {l}
+              </NL>
+            </button>
+          ))}
         </div>
         <div className="flex items-center justify-between">
           <button
-            onClick={() => fileInputRef.current?.click()}
+            type="button"
+            aria-label="Open gallery"
+            onClick={() => {
+              setScanMode('gallery');
+              galleryInputRef.current?.click();
+            }}
             className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
           >
             <ImageIcon size={18} />
           </button>
           <button
-            onClick={() => fileInputRef.current?.click()}
-            className="relative h-20 w-20 rounded-full border-2 border-white/80 flex items-center justify-center active:scale-95 transition"
+            type="button"
+            aria-label={scanMode === 'barcode' ? 'Scanning barcode…' : 'Capture meal'}
+            disabled={scanMode === 'barcode'}
+            onClick={() => {
+              if (scanMode === 'ai') fileInputRef.current?.click();
+              else if (scanMode === 'gallery') galleryInputRef.current?.click();
+            }}
+            className="relative h-20 w-20 rounded-full border-2 border-white/80 flex items-center justify-center active:scale-95 transition disabled:opacity-40"
           >
-            <span className="h-[60px] w-[60px] rounded-full bg-white" />
+            {scanMode === 'barcode' ? (
+              <span className="h-[60px] w-[60px] rounded-full border-2 border-white/40 flex items-center justify-center">
+                <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+              </span>
+            ) : (
+              <span className="h-[60px] w-[60px] rounded-full bg-white" />
+            )}
           </button>
           <button
+            type="button"
+            aria-label="Reset"
             onClick={() => {
               setImage(null);
               setScanResult(null);
+              setScanMode('ai');
             }}
             className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
           >
@@ -1794,25 +2090,28 @@ export default function NutritionPage() {
         ref={fileInputRef}
         onChange={handleCapture}
       />
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        ref={galleryInputRef}
+        onChange={handleCapture}
+      />
     </div>
   );
 
-  /* ── Compose view ── */
   return (
     <div
-      className="relative min-h-screen overflow-hidden"
+      className="relative h-full w-full overflow-hidden"
       style={{ ...cssVars, background: PALETTE.bg } as React.CSSProperties}
     >
-      <div
-        className="relative h-screen overflow-hidden"
-        style={{ maxWidth: 480, margin: '0 auto' }}
-      >
+      <div className="relative h-full overflow-hidden" style={{ maxWidth: 480, margin: '0 auto' }}>
         {view === 'dashboard' && renderDashboard()}
         {view === 'scanner' && renderScanner()}
         {view === 'analyzing' && (
           <AnalyzingView
             onCancel={() => {
-              setView('scanner');
+              changeView('scanner');
               setImage(null);
             }}
           />
@@ -1828,7 +2127,7 @@ export default function NutritionPage() {
               baseMacros: scanResult.macros,
             }}
             image={image}
-            onBack={() => setView('scanner')}
+            onBack={() => changeView('scanner')}
             onSave={handleSaveScanned}
             mode="scan"
             isSaving={isSaving}
@@ -1840,14 +2139,14 @@ export default function NutritionPage() {
             image={null}
             onBack={() => {
               setSelectedMeal(null);
-              setView('dashboard');
+              changeView('dashboard');
             }}
             onSave={(portion, macros) => {
               updateMealPortion(selectedMeal.id, portion);
               updateMealMacros(selectedMeal.id, macros);
               setSelectedMeal(null);
-              setView('dashboard');
-              toast.success('Repas mis à jour');
+              changeView('dashboard');
+              toast.success('Meal updated.');
             }}
             onUpdatePortion={(p) => updateMealPortion(selectedMeal.id, p)}
             onUpdateMacros={(m) => updateMealMacros(selectedMeal.id, m)}
@@ -1875,6 +2174,21 @@ export default function NutritionPage() {
           onSave={handleManualSave}
           isSaving={isSaving}
         />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Route entry point. Renders the same screen as the inline `<NutritionScreen />`
+ * used by the main app tab, but falls back to `router.back()` for the close button
+ * and provides its own viewport sizing.
+ */
+export default function NutritionRoutePage() {
+  return (
+    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
+      <div className="relative w-full max-w-md mx-auto" style={{ height: '100svh' }}>
+        <NutritionScreen />
       </div>
     </div>
   );

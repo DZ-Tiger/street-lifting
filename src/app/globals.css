@@ -43,6 +43,12 @@
   --fg: #0f0f0e;
   --carbon: #0c0c0b;
   --carbon-2: #161614;
+
+  /* Mobile safe-area aliases (work even when env() is not supported). */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 html {
@@ -55,8 +61,22 @@ body {
   color: var(--fg, #0f0f0e);
 }
 
+/* Prevent iOS Safari from auto-zooming form fields with <16px font-size. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Disable double-tap-to-zoom on interactive elements. */
+button,
+[role='button'],
+a {
+  touch-action: manipulation;
+}
+
 .dark {
-  display: none !important; /* On tue toute possibilité de dark mode */
+  display: none !important;
 }
 
 @layer utilities {
@@ -73,16 +93,44 @@ body {
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: oklch(0.5 0.2 250);
   }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .pb-safe {
+    padding-bottom: calc(var(--safe-bottom) + 0.75rem);
+  }
+  .pt-safe {
+    padding-top: calc(var(--safe-top) + 0.75rem);
+  }
+  .bottom-safe {
+    bottom: var(--safe-bottom);
+  }
+  .top-safe {
+    top: var(--safe-top);
+  }
 }
 
-/* Animations additionnelles */
 @keyframes flow-pulse {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.8; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .animate-flow-pulse {
   animation: flow-pulse 2s infinite ease-in-out;
 }
-
