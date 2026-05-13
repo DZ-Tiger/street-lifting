@@ -57,7 +57,7 @@ function AccountSettingsForm({ onClose }: AccountSettingsFormProps) {
     getAccount()
       .then((snapshot) => {
         if (cancelled) return;
-        setAccount(snapshot ?? { email: null, name: '', avatarUrl: null });
+        setAccount(snapshot ?? { email: null, name: '', avatarUrl: null, isOAuth: false });
         setName(snapshot?.name ?? '');
         setEmail(snapshot?.email ?? '');
         setAvatarPreview(snapshot?.avatarUrl ?? null);
@@ -243,46 +243,49 @@ function AccountSettingsForm({ onClose }: AccountSettingsFormProps) {
               </p>
             </div>
 
-            <div className="pt-2 space-y-3">
-              <div
-                className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em]"
-                style={{ color: 'var(--muted)' }}
-              >
-                <span>Change password</span>
-                <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
+            {!account?.isOAuth && (
+              <div className="pt-2 space-y-3">
+                <div
+                  className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em]"
+                  style={{ color: 'var(--muted)' }}
+                >
+                  <span>Change password</span>
+                  <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
+                </div>
+                <div>
+                  <Label htmlFor="account-password" className="sr-only">
+                    New password
+                  </Label>
+                  <Input
+                    id="account-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="New password"
+                    autoComplete="new-password"
+                    className="h-11 text-[16px]"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="account-password-confirm" className="sr-only">
+                    Confirm new password
+                  </Label>
+                  <Input
+                    id="account-password-confirm"
+                    type="password"
+                    value={passwordConfirm}
+                    onChange={(e) => setPasswordConfirm(e.target.value)}
+                    placeholder="Confirm password"
+                    autoComplete="new-password"
+                    className="h-11 text-[16px]"
+                  />
+                </div>
+                <p className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                  Leave blank to keep your current password. Minimum {PASSWORD_MIN_LENGTH}{' '}
+                  characters.
+                </p>
               </div>
-              <div>
-                <Label htmlFor="account-password" className="sr-only">
-                  New password
-                </Label>
-                <Input
-                  id="account-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="New password"
-                  autoComplete="new-password"
-                  className="h-11 text-[16px]"
-                />
-              </div>
-              <div>
-                <Label htmlFor="account-password-confirm" className="sr-only">
-                  Confirm new password
-                </Label>
-                <Input
-                  id="account-password-confirm"
-                  type="password"
-                  value={passwordConfirm}
-                  onChange={(e) => setPasswordConfirm(e.target.value)}
-                  placeholder="Confirm password"
-                  autoComplete="new-password"
-                  className="h-11 text-[16px]"
-                />
-              </div>
-              <p className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                Leave blank to keep your current password. Minimum {PASSWORD_MIN_LENGTH} characters.
-              </p>
-            </div>
+            )}
           </div>
 
           <div
