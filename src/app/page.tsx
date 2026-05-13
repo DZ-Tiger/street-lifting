@@ -13,7 +13,13 @@ import {
   UserProfile,
 } from '@/store/useStore';
 import { useNutritionStore } from '@/store/useNutritionStore';
-import { calculateTargets, GoalType, Gender, ACTIVITY_OPTIONS } from '@/lib/nutrition';
+import {
+  calculateTargets,
+  GoalType,
+  Gender,
+  ACTIVITY_OPTIONS,
+  NutritionTargets,
+} from '@/lib/nutrition';
 import { calculateAge, formatSeconds, useIsHydrated } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -333,7 +339,7 @@ interface HomeScreenProps {
   completedSessionDates: string[];
   template: ReturnType<typeof getSessionTemplate>;
   nutritionTotals: { calories: number; protein: number; carbs: number; fat: number };
-  nutritionTarget: number;
+  nutritionTargets: NutritionTargets;
   currentWeek: number;
 }
 
@@ -346,7 +352,7 @@ const HomeScreen = ({
   completedSessionDates,
   template,
   nutritionTotals,
-  nutritionTarget,
+  nutritionTargets,
   currentWeek,
 }: HomeScreenProps) => {
   const today = new Date();
@@ -359,7 +365,7 @@ const HomeScreen = ({
     return { day: DAY_LETTERS[date.getDay()], done };
   });
 
-  const remaining = Math.max(0, nutritionTarget - nutritionTotals.calories);
+  const remaining = Math.max(0, nutritionTargets.targetCalories - nutritionTotals.calories);
   const greetingName = displayName || (profileGender === 'female' ? 'Athlete' : 'Champion');
 
   return (
@@ -476,14 +482,20 @@ const HomeScreen = ({
             className="border rounded-2xl p-4 flex items-center gap-4"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
           >
-            <SmallRing pct={nutritionTarget > 0 ? nutritionTotals.calories / nutritionTarget : 0} />
+            <SmallRing
+              pct={
+                nutritionTargets.targetCalories > 0
+                  ? nutritionTotals.calories / nutritionTargets.targetCalories
+                  : 0
+              }
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline gap-1.5">
                 <NN className="text-[22px] font-medium leading-none" style={{ color: 'var(--fg)' }}>
                   {nutritionTotals.calories.toLocaleString('en-US')}
                 </NN>
                 <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                  / {nutritionTarget.toLocaleString('en-US')} kcal
+                  / {nutritionTargets.targetCalories.toLocaleString('en-US')} kcal
                 </NN>
               </div>
               <NN className="block mt-1 text-[10px]" style={{ color: 'var(--muted)' }}>
@@ -491,22 +503,43 @@ const HomeScreen = ({
               </NN>
               <div className="mt-2 flex gap-1.5">
                 {[
-                  { l: 'P', v: nutritionTotals.protein, shade: 'var(--fg)' },
-                  { l: 'C', v: nutritionTotals.carbs, shade: 'var(--ink-2)' },
-                  { l: 'F', v: nutritionTotals.fat, shade: 'var(--ink-3)' },
-                ].map((m) => (
-                  <div key={m.l} className="flex-1">
-                    <div
-                      className="h-[3px] rounded-full overflow-hidden"
-                      style={{ background: 'var(--surface-2)' }}
-                    >
-                      <div className="h-full" style={{ width: '70%', background: m.shade }} />
+                  {
+                    l: 'P',
+                    v: nutritionTotals.protein,
+                    t: nutritionTargets.targetProtein,
+                    shade: 'var(--fg)',
+                  },
+                  {
+                    l: 'C',
+                    v: nutritionTotals.carbs,
+                    t: nutritionTargets.targetCarbs,
+                    shade: 'var(--ink-2)',
+                  },
+                  {
+                    l: 'F',
+                    v: nutritionTotals.fat,
+                    t: nutritionTargets.targetFat,
+                    shade: 'var(--ink-3)',
+                  },
+                ].map((m) => {
+                  const pct = m.t > 0 ? (m.v / m.t) * 100 : 0;
+                  return (
+                    <div key={m.l} className="flex-1">
+                      <div
+                        className="h-[3px] rounded-full overflow-hidden"
+                        style={{ background: 'var(--surface-2)' }}
+                      >
+                        <div
+                          className="h-full transition-all duration-500"
+                          style={{ width: `${Math.min(pct, 100)}%`, background: m.shade }}
+                        />
+                      </div>
+                      <NN className="block mt-1 text-[9px]" style={{ color: 'var(--muted)' }}>
+                        {m.l} {m.v}g
+                      </NN>
                     </div>
-                    <NN className="block mt-1 text-[9px]" style={{ color: 'var(--muted)' }}>
-                      {m.l} {m.v}g
-                    </NN>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1702,7 +1735,7 @@ export default function App() {
             completedSessionDates={completedSessionDates}
             template={template}
             nutritionTotals={nutritionTotals}
-            nutritionTarget={nutritionTargets.targetCalories}
+            nutritionTargets={nutritionTargets}
             currentWeek={currentWeek}
           />
         );
