@@ -114,7 +114,12 @@ export const useNutritionStore = create<NutritionState>()(
 
         supabase
           .from('nutrition_logs')
-          .update({ calories: updatedCalories, protein: updatedProtein, carbs: updatedCarbs, fat: updatedFat })
+          .update({
+            calories: updatedCalories,
+            protein: updatedProtein,
+            carbs: updatedCarbs,
+            fat: updatedFat,
+          })
           .eq('id', id)
           .then(({ error }) => {
             if (error) console.error('Failed to update meal portion in DB:', error);
@@ -125,7 +130,11 @@ export const useNutritionStore = create<NutritionState>()(
         const meal = get().meals.find((m) => m.id === id);
         if (!meal) return;
 
-        const newBaseCalories = caloriesFromMacros(newMacros.protein, newMacros.carbs, newMacros.fat);
+        const newBaseCalories = caloriesFromMacros(
+          newMacros.protein,
+          newMacros.carbs,
+          newMacros.fat
+        );
         const updatedCalories = Math.round(newBaseCalories * meal.portion);
         const updatedProtein = Math.round(newMacros.protein * meal.portion);
         const updatedCarbs = Math.round(newMacros.carbs * meal.portion);
@@ -146,7 +155,12 @@ export const useNutritionStore = create<NutritionState>()(
 
         supabase
           .from('nutrition_logs')
-          .update({ calories: updatedCalories, protein: updatedProtein, carbs: updatedCarbs, fat: updatedFat })
+          .update({
+            calories: updatedCalories,
+            protein: updatedProtein,
+            carbs: updatedCarbs,
+            fat: updatedFat,
+          })
           .eq('id', id)
           .then(({ error }) => {
             if (error) console.error('Failed to update meal macros in DB:', error);

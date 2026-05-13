@@ -1275,9 +1275,7 @@ async function lookupBarcode(barcode: string): Promise<NutritionResponse | null>
     const p = data.product;
     const n = (p.nutriments ?? {}) as Record<string, number>;
     const kcal =
-      n['energy-kcal_100g'] ??
-      n['energy-kcal'] ??
-      Math.round((n['energy_100g'] ?? 0) / 4.184);
+      n['energy-kcal_100g'] ?? n['energy-kcal'] ?? Math.round((n['energy_100g'] ?? 0) / 4.184);
     return {
       mealName: p.product_name || `Barcode ${barcode}`,
       calories: Math.round(Number(kcal) || 0),
@@ -1299,7 +1297,9 @@ async function lookupBarcode(barcode: string): Promise<NutritionResponse | null>
 const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => void }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const onDetectedRef = React.useRef(onDetected);
-  const [permState, setPermState] = React.useState<'checking' | 'granted' | 'denied' | 'unavailable'>('checking');
+  const [permState, setPermState] = React.useState<
+    'checking' | 'granted' | 'denied' | 'unavailable'
+  >('checking');
   const [retryCount, setRetryCount] = React.useState(0);
 
   React.useEffect(() => {
@@ -1307,7 +1307,6 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
   });
 
   React.useEffect(() => {
-    setPermState('checking');
     if (!videoRef.current) return;
     let stopped = false;
     let stream: MediaStream | null = null;
@@ -1322,18 +1321,26 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'environment' } },
         });
-        if (stopped) { stream.getTracks().forEach((t) => t.stop()); return; }
+        if (stopped) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         setPermState('granted');
       } catch (err) {
         if (stopped) return;
         const name = err instanceof Error ? err.name : '';
-        setPermState(name === 'NotAllowedError' || name === 'PermissionDeniedError' ? 'denied' : 'unavailable');
+        setPermState(
+          name === 'NotAllowedError' || name === 'PermissionDeniedError' ? 'denied' : 'unavailable'
+        );
         return;
       }
 
       try {
         const { BrowserMultiFormatReader } = await import('@zxing/browser');
-        if (stopped) { stream?.getTracks().forEach((t) => t.stop()); return; }
+        if (stopped) {
+          stream?.getTracks().forEach((t) => t.stop());
+          return;
+        }
         const reader = new BrowserMultiFormatReader();
         reader
           .decodeFromStream(stream!, videoRef.current!, (result, _err, controls) => {
@@ -1380,7 +1387,10 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
         </p>
         <button
           type="button"
-          onClick={() => setRetryCount((c) => c + 1)}
+          onClick={() => {
+            setPermState('checking');
+            setRetryCount((c) => c + 1);
+          }}
           className="px-5 py-2.5 rounded-full border border-white/20 text-[11px] uppercase tracking-[0.2em] hover:bg-white/5 transition"
           style={{ color: 'rgba(255,255,255,0.7)' }}
         >
@@ -1409,10 +1419,20 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
       className="relative w-full rounded-[28px] overflow-hidden"
       style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
     >
-      <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-cover"
+        playsInline
+        muted
+      />
       {permState === 'checking' && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <Loader2 size={24} strokeWidth={1.5} className="animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
+          <Loader2
+            size={24}
+            strokeWidth={1.5}
+            className="animate-spin"
+            style={{ color: 'rgba(255,255,255,0.4)' }}
+          />
         </div>
       )}
       <div className="absolute inset-4 text-white/80">
@@ -1483,7 +1503,8 @@ export function NutritionScreen({
     [appProfile]
   );
 
-  const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros, fetchMeals } = useNutritionStore();
+  const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros, fetchMeals } =
+    useNutritionStore();
 
   const isHydrated = useIsHydrated();
 
@@ -1940,7 +1961,10 @@ export function NutritionScreen({
         <button
           type="button"
           aria-label="Open camera"
-          onClick={() => { setScanMode('ai'); fileInputRef.current?.click(); }}
+          onClick={() => {
+            setScanMode('ai');
+            fileInputRef.current?.click();
+          }}
           className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
         >
           <Camera size={18} />
@@ -2017,7 +2041,10 @@ export function NutritionScreen({
           <button
             type="button"
             aria-label="Open gallery"
-            onClick={() => { setScanMode('gallery'); galleryInputRef.current?.click(); }}
+            onClick={() => {
+              setScanMode('gallery');
+              galleryInputRef.current?.click();
+            }}
             className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
           >
             <ImageIcon size={18} />
