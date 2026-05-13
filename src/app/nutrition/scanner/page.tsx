@@ -1240,11 +1240,7 @@ const ManualSheet = ({
                 className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-medium transition disabled:opacity-50 hover:opacity-80"
                 style={{ color: PALETTE.fg }}
               >
-                {isAIFilling ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Wand2 size={12} />
-                )}
+                {isAIFilling ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
                 Auto-fill
               </button>
             </div>
@@ -1447,9 +1443,7 @@ const BarcodeReaderView = ({
 
   if (permState === 'denied') {
     return (
-      <div
-        className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-8 text-center bg-black/90"
-      >
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-8 text-center bg-black/90">
         <Camera size={36} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.3)' }} />
         <p className="text-[12px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
           Camera access is required to scan.
@@ -1473,9 +1467,7 @@ const BarcodeReaderView = ({
 
   if (permState === 'unavailable') {
     return (
-      <div
-        className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center bg-black/90"
-      >
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center bg-black/90">
         <Camera size={36} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.2)' }} />
         <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
           Camera unavailable on this device.
@@ -2020,7 +2012,10 @@ export function NutritionScreen({
       </div>
 
       {/* Viewfinder Overlays */}
-      <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10" style={{ paddingTop: '60px', paddingBottom: '160px' }}>
+      <div
+        className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10"
+        style={{ paddingTop: '60px', paddingBottom: '160px' }}
+      >
         <div className="relative w-[80%] max-w-[320px] aspect-square">
           {scanMode === 'ai' && (
             <div
@@ -2056,7 +2051,10 @@ export function NutritionScreen({
       </div>
 
       {/* Bottom Controls Overlay */}
-      <div className="absolute bottom-0 left-0 right-0 px-6 pt-12 pb-10 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent" style={{ paddingBottom: 'calc(var(--safe-bottom) + 2.5rem)' }}>
+      <div
+        className="absolute bottom-0 left-0 right-0 px-6 pt-12 pb-10 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
+        style={{ paddingBottom: 'calc(var(--safe-bottom) + 2.5rem)' }}
+      >
         <div className="flex items-center justify-center gap-8 mb-6">
           {SCAN_TABS.map(({ k, l }) => (
             <button
