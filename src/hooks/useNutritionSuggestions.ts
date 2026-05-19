@@ -139,7 +139,6 @@ export function useNutritionSuggestions() {
           }
         });
 
-
         // 2. Identify Patterns and Filter
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
