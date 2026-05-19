@@ -17,10 +17,10 @@ import {
   Pencil,
   X,
   Flame,
-  Settings2 as SettingsIcon,
   Image as ImageIcon,
   Wand2,
 } from 'lucide-react';
+import { NutritionSuggestions } from '@/components/NutritionSuggestions';
 import { toast } from 'sonner';
 
 import { supabase } from '@/lib/supabase';
@@ -1312,8 +1312,6 @@ export interface NutritionScreenProps {
   hideBackButton?: boolean;
   /** Notifies the parent whenever the internal view changes (useful for hiding BottomNav). */
   onViewChange?: (view: string) => void;
-  /** Callback to open global settings. */
-  onOpenSettings?: () => void;
 }
 
 export function NutritionScreen({
@@ -1321,7 +1319,6 @@ export function NutritionScreen({
   bottomInset = 0,
   hideBackButton = false,
   onViewChange,
-  onOpenSettings,
 }: NutritionScreenProps = {}) {
   useSkin();
   const router = useRouter();
@@ -1588,15 +1585,7 @@ export function NutritionScreen({
         >
           Nutrition
         </div>
-        <button
-          type="button"
-          aria-label="Open settings"
-          onClick={onOpenSettings}
-          className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full transition hover:opacity-70 active:scale-95"
-          style={{ color: PALETTE.fg }}
-        >
-          <SettingsIcon size={20} />
-        </button>
+        <div className="h-11 w-11" />
       </div>
 
       <div className="flex-1 overflow-y-auto" style={{ paddingBottom: `${bottomInset + 160}px` }}>
@@ -1690,6 +1679,7 @@ export function NutritionScreen({
         </div>
 
         <div className="px-5">
+          <NutritionSuggestions />
           <div className="flex items-center justify-between mb-2">
             <NL>Today&apos;s log</NL>
             <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
