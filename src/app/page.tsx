@@ -249,10 +249,7 @@ const Heatmap = ({ sessionDates }: { sessionDates: string[] }) => {
 /* ─────────────────────── SHeader ─────────────────────── */
 
 const SHeader = ({ title, right }: { title: string; right?: ReactNode }) => (
-  <div
-    className="flex items-center justify-between px-5 pt-3 pb-4 shrink-0"
-    style={{ background: 'var(--bg)' }}
-  >
+  <div className="flex items-center justify-between px-5 pt-3 pb-4">
     <div
       className="text-[11px] font-medium uppercase tracking-[0.28em]"
       style={{ color: 'var(--fg)' }}
@@ -280,47 +277,34 @@ const NAV_ITEMS: {
 ];
 
 const BottomNav = ({ active, onNav }: { active: AppView; onNav: (v: AppView) => void }) => (
-  <div
-    className="absolute left-0 right-0 bottom-0 px-3 pt-2 z-30 pointer-events-none"
-    style={{ paddingBottom: 'calc(var(--safe-bottom) + 0.75rem)' }}
-  >
-    <div
-      className="pointer-events-auto rounded-2xl flex items-stretch px-1.5 py-1.5 border"
-      style={{
-        background: 'var(--bg)',
-        borderColor: 'var(--border)',
-      }}
-    >
-      {NAV_ITEMS.map(({ k, label, Icon }) => {
-        const isActive = active === k;
-        return (
-          <button
-            key={k}
-            type="button"
-            onClick={() => onNav(k)}
-            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl transition min-h-[44px]"
-            aria-label={label}
+  <div className="h-20 flex items-stretch px-1.5">
+    {NAV_ITEMS.map(({ k, label, Icon }) => {
+      const isActive = active === k;
+      return (
+        <button
+          key={k}
+          type="button"
+          onClick={() => onNav(k)}
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl transition min-h-[44px]"
+          aria-label={label}
+        >
+          <div
+            className="h-7 w-7 rounded-lg flex items-center justify-center transition"
+            style={
+              isActive ? { background: 'var(--fg)', color: 'var(--bg)' } : { color: 'var(--muted)' }
+            }
           >
-            <div
-              className="h-7 w-7 rounded-lg flex items-center justify-center transition"
-              style={
-                isActive
-                  ? { background: 'var(--fg)', color: 'var(--bg)' }
-                  : { color: 'var(--muted)' }
-              }
-            >
-              <Icon size={15} strokeWidth={1.75} />
-            </div>
-            <span
-              className="text-[8.5px] uppercase tracking-[0.16em] font-medium"
-              style={{ color: isActive ? 'var(--fg)' : 'var(--muted)' }}
-            >
-              {label}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+            <Icon size={15} strokeWidth={1.75} />
+          </div>
+          <span
+            className="text-[8.5px] uppercase tracking-[0.16em] font-medium"
+            style={{ color: isActive ? 'var(--fg)' : 'var(--muted)' }}
+          >
+            {label}
+          </span>
+        </button>
+      );
+    })}
   </div>
 );
 
@@ -363,196 +347,181 @@ const HomeScreen = ({
   const greetingName = displayName || (profileGender === 'female' ? 'Athlete' : 'Champion');
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
-      <SHeader
-        title="Home"
-        right={
-          <button
-            type="button"
-            aria-label="Time"
-            className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full"
-            style={{ color: 'var(--fg)' }}
-          >
-            <Clock size={18} strokeWidth={1.5} />
-          </button>
-        }
-      />
-      <div className="flex-1 overflow-y-auto pb-32">
-        <div className="px-5 mb-5">
-          <NL>
-            {today.toLocaleDateString('en-US', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-            })}
-          </NL>
-          <div className="mt-1 text-[28px] font-medium leading-[1.05] tracking-tight">
-            Hi, {greetingName}.
-          </div>
+    <>
+      <div className="px-5 mb-5">
+        <NL>
+          {today.toLocaleDateString('en-US', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+          })}
+        </NL>
+        <div className="mt-1 text-[28px] font-medium leading-[1.05] tracking-tight">
+          Hi, {greetingName}.
         </div>
+      </div>
 
+      <div
+        className="mx-5 mb-5 border rounded-2xl p-4"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <NL>7-day activity</NL>
+          <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+            {last7.filter((d) => d.done).length} / 7
+          </NN>
+        </div>
+        <div className="grid grid-cols-7 gap-1.5">
+          {last7.map((d, i) => (
+            <div key={i} className="flex flex-col items-center gap-1.5">
+              <div
+                className="h-9 rounded-md w-full border"
+                style={
+                  d.done
+                    ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
+                    : { borderColor: 'var(--border)' }
+                }
+              />
+              <NL className="text-[8px]">{d.day}</NL>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onNav('workout')}
+        className="block w-full text-left px-5 mb-5"
+      >
+        <div className="mb-2 flex items-center justify-between">
+          <NL>Today&apos;s session</NL>
+          <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+            {template.exercises.length} exercises
+          </NN>
+        </div>
         <div
-          className="mx-5 mb-5 border rounded-2xl p-4"
+          className="border rounded-2xl p-4 transition hover:opacity-80"
           style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
         >
-          <div className="flex items-center justify-between mb-3">
-            <NL>7-day activity</NL>
-            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-              {last7.filter((d) => d.done).length} / 7
-            </NN>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[18px] font-medium leading-tight">{template.title}</div>
+              <NN className="block mt-1 text-[11px]" style={{ color: 'var(--muted)' }}>
+                {template.mainExercise} · {template.exercises.length} lifts
+              </NN>
+            </div>
+            <div
+              className="h-12 w-12 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: 'var(--fg)', color: 'var(--bg)' }}
+            >
+              <Play size={18} strokeWidth={1.75} />
+            </div>
           </div>
-          <div className="grid grid-cols-7 gap-1.5">
-            {last7.map((d, i) => (
-              <div key={i} className="flex flex-col items-center gap-1.5">
-                <div
-                  className="h-9 rounded-md w-full border"
-                  style={
-                    d.done
-                      ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
-                      : { borderColor: 'var(--border)' }
-                  }
-                />
-                <NL className="text-[8px]">{d.day}</NL>
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {template.exercises.slice(0, 4).map((e) => (
+              <div
+                key={e.name}
+                className="text-center px-2 py-2 rounded-lg border"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <NN className="block text-[10px] font-medium" style={{ color: 'var(--fg)' }}>
+                  {e.name.split(' ')[0]}
+                </NN>
               </div>
             ))}
           </div>
         </div>
+      </button>
 
-        <button
-          type="button"
-          onClick={() => onNav('workout')}
-          className="block w-full text-left px-5 mb-5"
+      <button
+        type="button"
+        onClick={() => onNav('nutrition')}
+        className="block w-full text-left px-5 mb-5"
+      >
+        <div className="mb-2 flex items-center justify-between">
+          <NL>Nutrition</NL>
+          <ChevronRight size={14} style={{ color: 'var(--muted)' }} />
+        </div>
+        <div
+          className="border rounded-2xl p-4 flex items-center gap-4"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
         >
-          <div className="mb-2 flex items-center justify-between">
-            <NL>Today&apos;s session</NL>
-            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-              {template.exercises.length} exercises
-            </NN>
-          </div>
-          <div
-            className="border rounded-2xl p-4 transition hover:opacity-80"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[18px] font-medium leading-tight">{template.title}</div>
-                <NN className="block mt-1 text-[11px]" style={{ color: 'var(--muted)' }}>
-                  {template.mainExercise} · {template.exercises.length} lifts
-                </NN>
-              </div>
-              <div
-                className="h-12 w-12 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: 'var(--fg)', color: 'var(--bg)' }}
-              >
-                <Play size={18} strokeWidth={1.75} />
-              </div>
+          <SmallRing pct={nutritionTarget > 0 ? nutritionTotals.calories / nutritionTarget : 0} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-1.5">
+              <NN className="text-[22px] font-medium leading-none" style={{ color: 'var(--fg)' }}>
+                {nutritionTotals.calories.toLocaleString('en-US')}
+              </NN>
+              <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                / {nutritionTarget.toLocaleString('en-US')} kcal
+              </NN>
             </div>
-            <div className="mt-4 grid grid-cols-4 gap-2">
-              {template.exercises.slice(0, 4).map((e) => (
-                <div
-                  key={e.name}
-                  className="text-center px-2 py-2 rounded-lg border"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  <NN className="block text-[10px] font-medium" style={{ color: 'var(--fg)' }}>
-                    {e.name.split(' ')[0]}
+            <NN className="block mt-1 text-[10px]" style={{ color: 'var(--muted)' }}>
+              {remaining} remaining
+            </NN>
+            <div className="mt-2 flex gap-1.5">
+              {[
+                { l: 'P', v: nutritionTotals.protein, shade: 'var(--fg)' },
+                { l: 'C', v: nutritionTotals.carbs, shade: 'var(--ink-2)' },
+                { l: 'F', v: nutritionTotals.fat, shade: 'var(--ink-3)' },
+              ].map((m) => (
+                <div key={m.l} className="flex-1">
+                  <div
+                    className="h-[3px] rounded-full overflow-hidden"
+                    style={{ background: 'var(--surface-2)' }}
+                  >
+                    <div className="h-full" style={{ width: '70%', background: m.shade }} />
+                  </div>
+                  <NN className="block mt-1 text-[9px]" style={{ color: 'var(--muted)' }}>
+                    {m.l} {m.v}g
                   </NN>
                 </div>
               ))}
             </div>
           </div>
-        </button>
+        </div>
+      </button>
 
-        <button
-          type="button"
-          onClick={() => onNav('nutrition')}
-          className="block w-full text-left px-5 mb-5"
+      <div className="px-5">
+        <div className="mb-2 flex items-center justify-between">
+          <NL>9-week cycle</NL>
+          <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+            {Math.round((currentWeek / 9) * 100)}%
+          </NN>
+        </div>
+        <div
+          className="border rounded-2xl p-4"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
         >
-          <div className="mb-2 flex items-center justify-between">
-            <NL>Nutrition</NL>
-            <ChevronRight size={14} style={{ color: 'var(--muted)' }} />
+          <div className="flex gap-1">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex-1 h-7 rounded-md border"
+                style={
+                  i < currentWeek - 1
+                    ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
+                    : i === currentWeek - 1
+                      ? { borderColor: 'var(--fg)' }
+                      : { borderColor: 'var(--border)' }
+                }
+              />
+            ))}
           </div>
-          <div
-            className="border rounded-2xl p-4 flex items-center gap-4"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-          >
-            <SmallRing pct={nutritionTarget > 0 ? nutritionTotals.calories / nutritionTarget : 0} />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-1.5">
-                <NN className="text-[22px] font-medium leading-none" style={{ color: 'var(--fg)' }}>
-                  {nutritionTotals.calories.toLocaleString('en-US')}
-                </NN>
-                <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                  / {nutritionTarget.toLocaleString('en-US')} kcal
-                </NN>
-              </div>
-              <NN className="block mt-1 text-[10px]" style={{ color: 'var(--muted)' }}>
-                {remaining} remaining
-              </NN>
-              <div className="mt-2 flex gap-1.5">
-                {[
-                  { l: 'P', v: nutritionTotals.protein, shade: 'var(--fg)' },
-                  { l: 'C', v: nutritionTotals.carbs, shade: 'var(--ink-2)' },
-                  { l: 'F', v: nutritionTotals.fat, shade: 'var(--ink-3)' },
-                ].map((m) => (
-                  <div key={m.l} className="flex-1">
-                    <div
-                      className="h-[3px] rounded-full overflow-hidden"
-                      style={{ background: 'var(--surface-2)' }}
-                    >
-                      <div className="h-full" style={{ width: '70%', background: m.shade }} />
-                    </div>
-                    <NN className="block mt-1 text-[9px]" style={{ color: 'var(--muted)' }}>
-                      {m.l} {m.v}g
-                    </NN>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </button>
-
-        <div className="px-5">
-          <div className="mb-2 flex items-center justify-between">
-            <NL>9-week cycle</NL>
-            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-              {Math.round((currentWeek / 9) * 100)}%
+          <div className="mt-3 flex justify-between">
+            <NN className="text-[9px]" style={{ color: 'var(--muted)' }}>
+              Week 1
             </NN>
-          </div>
-          <div
-            className="border rounded-2xl p-4"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-          >
-            <div className="flex gap-1">
-              {Array.from({ length: 9 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex-1 h-7 rounded-md border"
-                  style={
-                    i < currentWeek - 1
-                      ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
-                      : i === currentWeek - 1
-                        ? { borderColor: 'var(--fg)' }
-                        : { borderColor: 'var(--border)' }
-                  }
-                />
-              ))}
-            </div>
-            <div className="mt-3 flex justify-between">
-              <NN className="text-[9px]" style={{ color: 'var(--muted)' }}>
-                Week 1
-              </NN>
-              <NN className="text-[9px]" style={{ color: 'var(--muted)' }}>
-                Peak week 7
-              </NN>
-              <NN className="text-[9px]" style={{ color: 'var(--muted)' }}>
-                Test week 9
-              </NN>
-            </div>
+            <NN className="text-[9px]" style={{ color: 'var(--muted)' }}>
+              Peak week 7
+            </NN>
+            <NN className="text-[9px]" style={{ color: 'var(--muted)' }}>
+              Test week 9
+            </NN>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -566,6 +535,7 @@ interface WorkoutScreenProps {
   setCurrentDay: (d: number) => void;
   onValidate: (lest: number, reps: number) => Promise<void>;
   loading: boolean;
+  onRegisterAction?: (a: { run: () => void; disabled: boolean; loading: boolean } | null) => void;
 }
 
 const REST_TARGET_SECONDS = 120;
@@ -578,6 +548,7 @@ const WorkoutScreen = ({
   setCurrentDay,
   onValidate,
   loading,
+  onRegisterAction,
 }: WorkoutScreenProps) => {
   const mainExercise = template.exercises.find((e) => e.isMain);
   const initialLest = typeof mainExercise?.weight === 'number' ? mainExercise.weight : 0;
@@ -607,247 +578,218 @@ const WorkoutScreen = ({
     setRunning(true);
   };
 
+  // Register the "Log set" action with the shell's fixed slot. Re-registers
+  // when the closure inputs change so the shell button always runs current
+  // values; clears on unmount (leaving the Workout tab).
+  useEffect(() => {
+    onRegisterAction?.({ run: handleValidate, disabled: isDone || loading, loading });
+    return () => onRegisterAction?.(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onRegisterAction, isDone, loading, lestInput, repsInput]);
+
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
-      <SHeader
-        title="Workouts"
-        right={
-          <div className="flex items-center gap-1 -mr-2">
-            <span
-              className="h-2 w-2 rounded-full animate-pulse"
-              style={{ background: 'var(--fg)' }}
-            />
-            <NN
-              className="text-[10px] uppercase tracking-[0.18em] pr-2"
-              style={{ color: 'var(--muted)' }}
-            >
-              REC
-            </NN>
-          </div>
-        }
-      />
-      <div className="flex-1 overflow-y-auto pb-32">
-        <div className="px-5 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <NN className="text-[11px]" style={{ color: 'var(--muted)' }}>
-              W{currentWeek} · D{currentDay}
-            </NN>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                aria-label="Previous day"
-                onClick={() => setCurrentDay(Math.max(1, currentDay - 1))}
-                className="h-11 w-11 rounded-lg flex items-center justify-center border"
-                style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                aria-label="Next day"
-                onClick={() => setCurrentDay(Math.min(4, currentDay + 1))}
-                className="h-11 w-11 rounded-lg flex items-center justify-center border"
-                style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
+    <>
+      <div className="px-5 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <NN className="text-[11px]" style={{ color: 'var(--muted)' }}>
+            W{currentWeek} · D{currentDay}
+          </NN>
           <div className="flex gap-1">
-            {progressionMatrix.slice(0, 9).map((step) => (
-              <button
-                key={step.week}
-                type="button"
-                aria-label={`Week ${step.week}`}
-                className="flex-1 h-1.5 rounded-full cursor-pointer"
-                style={
-                  currentWeek === step.week
-                    ? { background: 'var(--fg)' }
-                    : currentWeek > step.week
-                      ? { background: 'var(--ink-3)' }
-                      : { background: 'var(--surface-2)' }
-                }
-                onClick={() => setCurrentWeek(step.week)}
-              />
-            ))}
-          </div>
-          <NL className="block mt-2">{template.title}</NL>
-        </div>
-
-        <div className="px-5">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {template.exercises.map((e, i) => (
-              <button
-                key={e.name}
-                type="button"
-                onClick={() => setExIdx(i)}
-                className="shrink-0 px-3 h-11 rounded-full border transition"
-                style={
-                  i === exIdx
-                    ? {
-                        background: 'var(--fg)',
-                        color: 'var(--bg)',
-                        borderColor: 'var(--fg)',
-                      }
-                    : { borderColor: 'var(--border)', color: 'var(--muted)' }
-                }
-              >
-                <NN className="text-[11px] font-medium">{e.name}</NN>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="px-5 mt-5">
-          <NL>
-            Exercise {exIdx + 1}/{template.exercises.length}
-          </NL>
-          <div className="mt-1 flex items-end justify-between">
-            <div>
-              <div className="text-[22px] font-medium leading-tight tracking-tight">
-                {exercise?.name}
-              </div>
-              <NN className="block mt-1 text-[11px]" style={{ color: 'var(--muted)' }}>
-                {exercise?.sets} × {exercise?.reps} ·{' '}
-                {typeof exercise?.weight === 'number' ? `+${exercise.weight} kg` : exercise?.weight}
-              </NN>
-            </div>
-          </div>
-        </div>
-
-        <div
-          className="mx-5 mt-5 border rounded-2xl p-5"
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <NL>Rest</NL>
-            <NL>target 2:00</NL>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <NN
-              className="text-[64px] font-medium tracking-tight leading-none"
-              style={{ color: 'var(--fg)' }}
-            >
-              {formatSeconds(rest)}
-            </NN>
             <button
               type="button"
-              aria-label={running ? 'Pause rest timer' : 'Start rest timer'}
-              onClick={() => setRunning((r) => !r)}
-              className="h-16 w-16 rounded-full flex items-center justify-center active:scale-95 shrink-0"
-              style={{ background: 'var(--fg)', color: 'var(--bg)' }}
+              aria-label="Previous day"
+              onClick={() => setCurrentDay(Math.max(1, currentDay - 1))}
+              className="h-11 w-11 rounded-lg flex items-center justify-center border"
+              style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
             >
-              {running ? <Pause size={22} /> : <Play size={22} />}
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              aria-label="Next day"
+              onClick={() => setCurrentDay(Math.min(4, currentDay + 1))}
+              className="h-11 w-11 rounded-lg flex items-center justify-center border"
+              style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
+            >
+              <ChevronRight size={16} />
             </button>
           </div>
-          <div
-            className="mt-4 h-[3px] rounded-full overflow-hidden"
-            style={{ background: 'var(--surface-2)' }}
-          >
-            <div
-              className="h-full transition-[width] duration-300"
-              style={{
-                width: `${Math.min((rest / REST_TARGET_SECONDS) * 100, 100)}%`,
-                background: 'var(--fg)',
-              }}
+        </div>
+        <div className="flex gap-1">
+          {progressionMatrix.slice(0, 9).map((step) => (
+            <button
+              key={step.week}
+              type="button"
+              aria-label={`Week ${step.week}`}
+              className="flex-1 h-1.5 rounded-full cursor-pointer"
+              style={
+                currentWeek === step.week
+                  ? { background: 'var(--fg)' }
+                  : currentWeek > step.week
+                    ? { background: 'var(--ink-3)' }
+                    : { background: 'var(--surface-2)' }
+              }
+              onClick={() => setCurrentWeek(step.week)}
             />
+          ))}
+        </div>
+        <NL className="block mt-2">{template.title}</NL>
+      </div>
+
+      <div className="px-5">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {template.exercises.map((e, i) => (
+            <button
+              key={e.name}
+              type="button"
+              onClick={() => setExIdx(i)}
+              className="shrink-0 px-3 h-11 rounded-full border transition"
+              style={
+                i === exIdx
+                  ? {
+                      background: 'var(--fg)',
+                      color: 'var(--bg)',
+                      borderColor: 'var(--fg)',
+                    }
+                  : { borderColor: 'var(--border)', color: 'var(--muted)' }
+              }
+            >
+              <NN className="text-[11px] font-medium">{e.name}</NN>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-5 mt-5">
+        <NL>
+          Exercise {exIdx + 1}/{template.exercises.length}
+        </NL>
+        <div className="mt-1 flex items-end justify-between">
+          <div>
+            <div className="text-[22px] font-medium leading-tight tracking-tight">
+              {exercise?.name}
+            </div>
+            <NN className="block mt-1 text-[11px]" style={{ color: 'var(--muted)' }}>
+              {exercise?.sets} × {exercise?.reps} ·{' '}
+              {typeof exercise?.weight === 'number' ? `+${exercise.weight} kg` : exercise?.weight}
+            </NN>
           </div>
         </div>
+      </div>
 
-        <div className="px-5 mt-5 space-y-3">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <NL>Reps</NL>
-              <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                target {exercise?.reps}
-              </NN>
-            </div>
-            <Stepper value={repsInput} onChange={setRepsInput} suffix="reps" />
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <NL>Added load</NL>
-              <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                step 2.5 kg
-              </NN>
-            </div>
-            <Stepper value={lestInput} onChange={setLestInput} step={2.5} suffix="kg" />
-          </div>
+      <div
+        className="mx-5 mt-5 border rounded-2xl p-5"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <NL>Rest</NL>
+          <NL>target 2:00</NL>
         </div>
-
-        <div className="px-5 mt-5">
+        <div className="flex items-center justify-between gap-4">
+          <NN
+            className="text-[64px] font-medium tracking-tight leading-none"
+            style={{ color: 'var(--fg)' }}
+          >
+            {formatSeconds(rest)}
+          </NN>
           <button
             type="button"
-            onClick={handleValidate}
-            disabled={isDone || loading}
-            className="w-full h-20 rounded-2xl flex items-center justify-center gap-3 active:scale-[0.99] transition disabled:opacity-50"
+            aria-label={running ? 'Pause rest timer' : 'Start rest timer'}
+            onClick={() => setRunning((r) => !r)}
+            className="h-16 w-16 rounded-full flex items-center justify-center active:scale-95 shrink-0"
             style={{ background: 'var(--fg)', color: 'var(--bg)' }}
           >
-            {loading ? (
-              <Loader2 size={22} className="animate-spin" />
-            ) : (
-              <>
-                <Check size={22} strokeWidth={2.5} />
-                <span className="text-[14px] font-medium uppercase tracking-[0.22em]">Log set</span>
-              </>
-            )}
+            {running ? <Pause size={22} /> : <Play size={22} />}
           </button>
         </div>
-
-        {history.length > 0 && (
-          <div className="px-5 mt-5">
-            <div className="flex items-center justify-between mb-2">
-              <NL>Logged sets</NL>
-              <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                {history.length}
-              </NN>
-            </div>
-            <div
-              className="border rounded-2xl overflow-hidden"
-              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-            >
-              {history.map((h, i) => (
-                <div
-                  key={i}
-                  className="px-4 py-3 flex items-center justify-between"
-                  style={{
-                    borderTop: i > 0 ? '1px solid var(--border)' : undefined,
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: 'var(--fg)', color: 'var(--bg)' }}
-                    >
-                      <Check size={12} strokeWidth={2.5} />
-                    </div>
-                    <NN className="text-[12px] font-medium" style={{ color: 'var(--fg)' }}>
-                      Set {h.set}
-                    </NN>
-                  </div>
-                  <div className="flex items-baseline gap-4">
-                    <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
-                      {h.reps}
-                      <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                        {' '}
-                        reps
-                      </span>
-                    </NN>
-                    <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
-                      +{h.load}
-                      <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                        {' '}
-                        kg
-                      </span>
-                    </NN>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <div
+          className="mt-4 h-[3px] rounded-full overflow-hidden"
+          style={{ background: 'var(--surface-2)' }}
+        >
+          <div
+            className="h-full transition-[width] duration-300"
+            style={{
+              width: `${Math.min((rest / REST_TARGET_SECONDS) * 100, 100)}%`,
+              background: 'var(--fg)',
+            }}
+          />
+        </div>
       </div>
-    </div>
+
+      <div className="px-5 mt-5 space-y-3">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <NL>Reps</NL>
+            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              target {exercise?.reps}
+            </NN>
+          </div>
+          <Stepper value={repsInput} onChange={setRepsInput} suffix="reps" />
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <NL>Added load</NL>
+            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              step 2.5 kg
+            </NN>
+          </div>
+          <Stepper value={lestInput} onChange={setLestInput} step={2.5} suffix="kg" />
+        </div>
+      </div>
+
+      {history.length > 0 && (
+        <div className="px-5 mt-5">
+          <div className="flex items-center justify-between mb-2">
+            <NL>Logged sets</NL>
+            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              {history.length}
+            </NN>
+          </div>
+          <div
+            className="border rounded-2xl overflow-hidden"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+          >
+            {history.map((h, i) => (
+              <div
+                key={i}
+                className="px-4 py-3 flex items-center justify-between"
+                style={{
+                  borderTop: i > 0 ? '1px solid var(--border)' : undefined,
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
+                    style={{ background: 'var(--fg)', color: 'var(--bg)' }}
+                  >
+                    <Check size={12} strokeWidth={2.5} />
+                  </div>
+                  <NN className="text-[12px] font-medium" style={{ color: 'var(--fg)' }}>
+                    Set {h.set}
+                  </NN>
+                </div>
+                <div className="flex items-baseline gap-4">
+                  <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
+                    {h.reps}
+                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                      {' '}
+                      reps
+                    </span>
+                  </NN>
+                  <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
+                    +{h.load}
+                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                      {' '}
+                      kg
+                    </span>
+                  </NN>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
@@ -908,145 +850,142 @@ const ProgressScreen = ({ exerciseLogs, completedSessions, oneRMs }: ProgressScr
   const sessionDates = completedSessions.map((s) => s.date);
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
-      <SHeader title="Progress" />
-      <div className="flex-1 overflow-y-auto pb-32">
-        <div
-          className="mx-5 mb-5 grid grid-cols-3 border rounded-2xl overflow-hidden"
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-        >
-          {[
-            { label: 'Volume', value: totalVolume.toFixed(1), unit: 't', sub: 'total' },
-            {
-              label: 'Sessions',
-              value: String(completedSessions.length),
-              unit: '',
-              sub: 'all-time',
-            },
-            {
-              label: 'PRs',
-              value: String(recentPRs.length),
-              unit: '',
-              sub: 'recent',
-            },
-          ].map((s, i) => (
-            <div
-              key={s.label}
-              className="px-3 py-3 text-center"
-              style={i > 0 ? { borderLeft: '1px solid var(--border)' } : undefined}
-            >
-              <div className="flex items-baseline justify-center gap-1">
-                <NN className="text-[20px] font-medium leading-none" style={{ color: 'var(--fg)' }}>
-                  {s.value}
-                </NN>
-                {s.unit && <NL className="text-[9px]">{s.unit}</NL>}
-              </div>
-              <div className="mt-1.5">
-                <NL className="text-[8px] tracking-[0.22em]">{s.label}</NL>
-              </div>
-              <NN className="block mt-0.5 text-[9px]" style={{ color: 'var(--muted)' }}>
-                {s.sub}
+    <>
+      <div
+        className="mx-5 mb-5 grid grid-cols-3 border rounded-2xl overflow-hidden"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        {[
+          { label: 'Volume', value: totalVolume.toFixed(1), unit: 't', sub: 'total' },
+          {
+            label: 'Sessions',
+            value: String(completedSessions.length),
+            unit: '',
+            sub: 'all-time',
+          },
+          {
+            label: 'PRs',
+            value: String(recentPRs.length),
+            unit: '',
+            sub: 'recent',
+          },
+        ].map((s, i) => (
+          <div
+            key={s.label}
+            className="px-3 py-3 text-center"
+            style={i > 0 ? { borderLeft: '1px solid var(--border)' } : undefined}
+          >
+            <div className="flex items-baseline justify-center gap-1">
+              <NN className="text-[20px] font-medium leading-none" style={{ color: 'var(--fg)' }}>
+                {s.value}
               </NN>
+              {s.unit && <NL className="text-[9px]">{s.unit}</NL>}
             </div>
+            <div className="mt-1.5">
+              <NL className="text-[8px] tracking-[0.22em]">{s.label}</NL>
+            </div>
+            <NN className="block mt-0.5 text-[9px]" style={{ color: 'var(--muted)' }}>
+              {s.sub}
+            </NN>
+          </div>
+        ))}
+      </div>
+
+      <div
+        className="mx-5 mb-5 border rounded-2xl p-5"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <NL>Estimated 1RM · 12 wks</NL>
+          <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+            {gain >= 0 ? '+' : ''}
+            {gain.toFixed(1)} kg
+          </NN>
+        </div>
+        <div className="flex items-baseline gap-2 mb-3">
+          <NN
+            className="text-[36px] font-medium tracking-tight leading-none"
+            style={{ color: 'var(--fg)' }}
+          >
+            {last1RM}
+          </NN>
+          <NL>kg</NL>
+        </div>
+        <SparkLine data={sparkData} />
+        <div
+          className="mt-3 flex gap-1 border rounded-xl p-1"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          {LIFT_OPTIONS.map((o) => (
+            <button
+              key={o.k}
+              type="button"
+              onClick={() => setLift(o.k)}
+              className="flex-1 min-h-[44px] rounded-lg text-[11px] font-medium transition"
+              style={
+                lift === o.k
+                  ? { background: 'var(--fg)', color: 'var(--bg)' }
+                  : { color: 'var(--muted)' }
+              }
+            >
+              {o.l}
+            </button>
           ))}
         </div>
+      </div>
 
-        <div
-          className="mx-5 mb-5 border rounded-2xl p-5"
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <NL>Estimated 1RM · 12 wks</NL>
-            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-              {gain >= 0 ? '+' : ''}
-              {gain.toFixed(1)} kg
-            </NN>
+      <div
+        className="mx-5 mb-5 border rounded-2xl p-5"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <NL>Consistency</NL>
+          <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+            {completedSessions.length} sessions
+          </NN>
+        </div>
+        <Heatmap sessionDates={sessionDates} />
+      </div>
+
+      {recentPRs.length > 0 && (
+        <div className="mx-5 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <NL>Recent records</NL>
           </div>
-          <div className="flex items-baseline gap-2 mb-3">
-            <NN
-              className="text-[36px] font-medium tracking-tight leading-none"
-              style={{ color: 'var(--fg)' }}
-            >
-              {last1RM}
-            </NN>
-            <NL>kg</NL>
-          </div>
-          <SparkLine data={sparkData} />
           <div
-            className="mt-3 flex gap-1 border rounded-xl p-1"
-            style={{ borderColor: 'var(--border)' }}
+            className="border rounded-2xl overflow-hidden"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
           >
-            {LIFT_OPTIONS.map((o) => (
-              <button
-                key={o.k}
-                type="button"
-                onClick={() => setLift(o.k)}
-                className="flex-1 min-h-[44px] rounded-lg text-[11px] font-medium transition"
-                style={
-                  lift === o.k
-                    ? { background: 'var(--fg)', color: 'var(--bg)' }
-                    : { color: 'var(--muted)' }
-                }
+            {recentPRs.map((r, i) => (
+              <div
+                key={r.id || i}
+                className="px-4 py-3 flex items-center justify-between"
+                style={{
+                  borderTop: i > 0 ? '1px solid var(--border)' : undefined,
+                }}
               >
-                {o.l}
-              </button>
+                <div>
+                  <NN className="block text-[13px] font-medium" style={{ color: 'var(--fg)' }}>
+                    {r.exercise_name}
+                  </NN>
+                  <NN className="block mt-0.5 text-[10px]" style={{ color: 'var(--muted)' }}>
+                    {r.date
+                      ? new Date(r.date).toLocaleDateString('en-US', {
+                          day: 'numeric',
+                          month: 'short',
+                        })
+                      : ''}
+                  </NN>
+                </div>
+                <NN className="text-[16px] font-medium" style={{ color: 'var(--fg)' }}>
+                  {Math.round(r.calculated_1rm * 10) / 10} kg
+                </NN>
+              </div>
             ))}
           </div>
         </div>
-
-        <div
-          className="mx-5 mb-5 border rounded-2xl p-5"
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <NL>Consistency</NL>
-            <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-              {completedSessions.length} sessions
-            </NN>
-          </div>
-          <Heatmap sessionDates={sessionDates} />
-        </div>
-
-        {recentPRs.length > 0 && (
-          <div className="mx-5 mb-5">
-            <div className="flex items-center justify-between mb-2">
-              <NL>Recent records</NL>
-            </div>
-            <div
-              className="border rounded-2xl overflow-hidden"
-              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-            >
-              {recentPRs.map((r, i) => (
-                <div
-                  key={r.id || i}
-                  className="px-4 py-3 flex items-center justify-between"
-                  style={{
-                    borderTop: i > 0 ? '1px solid var(--border)' : undefined,
-                  }}
-                >
-                  <div>
-                    <NN className="block text-[13px] font-medium" style={{ color: 'var(--fg)' }}>
-                      {r.exercise_name}
-                    </NN>
-                    <NN className="block mt-0.5 text-[10px]" style={{ color: 'var(--muted)' }}>
-                      {r.date
-                        ? new Date(r.date).toLocaleDateString('en-US', {
-                            day: 'numeric',
-                            month: 'short',
-                          })
-                        : ''}
-                    </NN>
-                  </div>
-                  <NN className="text-[16px] font-medium" style={{ color: 'var(--fg)' }}>
-                    {Math.round(r.calculated_1rm * 10) / 10} kg
-                  </NN>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      )}
+    </>
   );
 };
 
@@ -1183,8 +1122,9 @@ interface ProfileScreenProps {
   onLogout: () => void;
   onUpdateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   onUpdateOneRepMax: (exercise: ExerciseType, value: number) => Promise<void>;
-  onOpenAccount: () => void;
   avatarUrl?: string | null;
+  editMode: boolean;
+  onExitEdit: () => void;
 }
 
 const ONE_RM_ROWS: { label: string; key: ExerciseType }[] = [
@@ -1203,10 +1143,10 @@ const ProfileScreen = ({
   onLogout,
   onUpdateProfile,
   onUpdateOneRepMax,
-  onOpenAccount,
   avatarUrl,
+  editMode,
+  onExitEdit,
 }: ProfileScreenProps) => {
-  const [editMode, setEditMode] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(profile?.display_name || '');
   const [editBirthDate, setEditBirthDate] = useState(profile?.birth_date || '2000-01-01');
   const [editHeight, setEditHeight] = useState(profile?.height || 180);
@@ -1227,7 +1167,7 @@ const ProfileScreen = ({
         activity_level: editActivity,
       });
       toast.success('Profile updated');
-      setEditMode(false);
+      onExitEdit();
     } catch {
       toast.error('Update failed');
     } finally {
@@ -1240,296 +1180,269 @@ const ProfileScreen = ({
   const age = calculateAge(profile?.birth_date || '');
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
-      <SHeader
-        title="Profile"
-        right={
-          <div className="flex items-center gap-1 -mr-2">
-            <button
-              type="button"
-              onClick={() => setEditMode((v) => !v)}
-              className="text-[10px] font-medium uppercase tracking-[0.16em] transition hover:opacity-70 min-h-[44px] px-3"
-              style={{ color: 'var(--fg)' }}
-              aria-label={editMode ? 'Cancel editing' : 'Edit profile'}
-            >
-              {editMode ? 'Cancel' : 'Edit'}
-            </button>
-            <button
-              type="button"
-              onClick={onOpenAccount}
-              className="h-11 w-11 flex items-center justify-center rounded-full transition hover:opacity-70"
-              style={{ color: 'var(--fg)' }}
-              aria-label="Account settings"
-            >
-              <SettingsIcon size={18} strokeWidth={1.75} />
-            </button>
-          </div>
-        }
-      />
-      <div className="flex-1 overflow-y-auto pb-32">
-        <div className="px-5 mb-5 flex items-center gap-4">
-          <div
-            className="h-16 w-16 rounded-2xl border flex items-center justify-center shrink-0 relative overflow-hidden"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-          >
-            {avatarUrl ? (
-              <Image src={avatarUrl} alt="Avatar" fill className="object-cover" unoptimized />
-            ) : (
-              <NN className="text-[22px] font-medium" style={{ color: 'var(--fg)' }}>
-                {initial}
-              </NN>
-            )}
-          </div>
-          <div>
-            <div className="text-[20px] font-medium leading-tight">
-              {profile?.display_name || (profile?.gender === 'female' ? 'Athlete' : 'Champion')}
-            </div>
-            <NN className="block mt-0.5 text-[11px]" style={{ color: 'var(--muted)' }}>
-              {profile?.onboarding_completed ? 'profile complete' : 'in progress'} · {bodyWeight} kg
+    <>
+      <div className="px-5 mb-5 flex items-center gap-4">
+        <div
+          className="h-16 w-16 rounded-2xl border flex items-center justify-center shrink-0 relative overflow-hidden"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+        >
+          {avatarUrl ? (
+            <Image src={avatarUrl} alt="Avatar" fill className="object-cover" unoptimized />
+          ) : (
+            <NN className="text-[22px] font-medium" style={{ color: 'var(--fg)' }}>
+              {initial}
             </NN>
+          )}
+        </div>
+        <div>
+          <div className="text-[20px] font-medium leading-tight">
+            {profile?.display_name || (profile?.gender === 'female' ? 'Athlete' : 'Champion')}
           </div>
-        </div>
-
-        <div className="px-5 mb-2">
-          <NL>Measurements</NL>
-        </div>
-        <div
-          className="mx-5 mb-5 border rounded-2xl overflow-hidden"
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-        >
-          {[
-            { label: 'Weight', value: String(bodyWeight), unit: 'kg' },
-            { label: 'Height', value: String(profile?.height || '—'), unit: 'cm' },
-            { label: 'Age', value: age > 0 ? String(age) : '—', unit: 'yrs' },
-            {
-              label: 'Sex',
-              value:
-                profile?.gender === 'female' ? 'Female' : profile?.gender === 'male' ? 'Male' : '—',
-              unit: undefined,
-            },
-          ].map(({ label, value, unit }, i) => (
-            <div
-              key={label}
-              className="flex items-center justify-between px-4 py-3.5"
-              style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
-            >
-              <NL>{label}</NL>
-              <div className="flex items-baseline gap-1">
-                <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
-                  {value}
-                </NN>
-                {unit && <NL className="text-[9px]">{unit}</NL>}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="px-5 mb-2">
-          <NL>1RM baselines</NL>
-        </div>
-        <div
-          className="mx-5 mb-5 border rounded-2xl overflow-hidden"
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-        >
-          {ONE_RM_ROWS.map(({ label, key }, i) => (
-            <EditableOneRepMaxRow
-              key={key}
-              label={label}
-              value={oneRMs[key]}
-              isFirst={i === 0}
-              onSave={(next) => onUpdateOneRepMax(key, next)}
-            />
-          ))}
-        </div>
-
-        <div className="px-5 mb-2 flex items-center justify-between">
-          <NL>Theme</NL>
-          <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-            global
+          <NN className="block mt-0.5 text-[11px]" style={{ color: 'var(--muted)' }}>
+            {profile?.onboarding_completed ? 'profile complete' : 'in progress'} · {bodyWeight} kg
           </NN>
         </div>
-        <div className="mx-5 mb-5 grid grid-cols-3 gap-2">
-          {SKINS_META.map((s) => {
-            const active = skin === s.k;
-            return (
-              <button
-                key={s.k}
-                type="button"
-                onClick={() => onSkin(s.k)}
-                className="p-3 rounded-2xl border transition text-left"
-                style={{ borderColor: active ? 'var(--fg)' : 'var(--border)' }}
-              >
-                <div className="flex gap-1.5 mb-2">
-                  {s.sw.map((color, i) => (
-                    <div
-                      key={i}
-                      className="h-6 flex-1 rounded-md border"
-                      style={{ background: color, borderColor: 'var(--border)' }}
-                    />
-                  ))}
-                </div>
-                <div className="flex items-center justify-between">
-                  <NN className="text-[11px] font-medium" style={{ color: 'var(--fg)' }}>
-                    {s.l}
-                  </NN>
-                  {active && <Check size={12} strokeWidth={2.5} style={{ color: 'var(--fg)' }} />}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+      </div>
 
-        <div className="px-5 mb-2">
-          <NL>Settings</NL>
-        </div>
-
-        {editMode && (
+      <div className="px-5 mb-2">
+        <NL>Measurements</NL>
+      </div>
+      <div
+        className="mx-5 mb-5 border rounded-2xl overflow-hidden"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        {[
+          { label: 'Weight', value: String(bodyWeight), unit: 'kg' },
+          { label: 'Height', value: String(profile?.height || '—'), unit: 'cm' },
+          { label: 'Age', value: age > 0 ? String(age) : '—', unit: 'yrs' },
+          {
+            label: 'Sex',
+            value:
+              profile?.gender === 'female' ? 'Female' : profile?.gender === 'male' ? 'Male' : '—',
+            unit: undefined,
+          },
+        ].map(({ label, value, unit }, i) => (
           <div
-            className="mx-5 mb-5 border rounded-2xl p-5 space-y-4"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            key={label}
+            className="flex items-center justify-between px-4 py-3.5"
+            style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
           >
-            <div>
-              <NL className="block mb-1.5">Name</NL>
-              <input
-                type="text"
-                value={editDisplayName}
-                onChange={(e) => setEditDisplayName(e.target.value)}
-                placeholder="Champion"
-                className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[16px] font-medium"
-                style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
-              />
+            <NL>{label}</NL>
+            <div className="flex items-baseline gap-1">
+              <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
+                {value}
+              </NN>
+              {unit && <NL className="text-[9px]">{unit}</NL>}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
-                <NL>Height</NL>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <input
-                    type="number"
-                    value={editHeight}
-                    onChange={(e) => setEditHeight(Number(e.target.value) || 0)}
-                    className="bg-transparent outline-none font-mono tabular-nums text-[20px] font-medium w-full"
-                    style={{ color: 'var(--fg)' }}
-                  />
-                  <NL className="text-[9px]">cm</NL>
-                </div>
-              </div>
-              <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
-                <NL>Sex</NL>
-                <div className="mt-2 flex gap-1">
-                  {(['male', 'female'] as const).map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setEditGender(g)}
-                      className="flex-1 min-h-[44px] rounded-lg text-[12px] font-medium transition"
-                      style={
-                        editGender === g
-                          ? { background: 'var(--fg)', color: 'var(--bg)' }
-                          : { color: 'var(--muted)', border: '1px solid var(--border)' }
-                      }
-                    >
-                      {g === 'male' ? 'Male' : 'Female'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+          </div>
+        ))}
+      </div>
 
-            <div>
-              <NL className="mb-2 block">Goal</NL>
-              <div className="grid grid-cols-3 gap-2">
-                {GOAL_BUTTONS.map((g) => (
+      <div className="px-5 mb-2">
+        <NL>1RM baselines</NL>
+      </div>
+      <div
+        className="mx-5 mb-5 border rounded-2xl overflow-hidden"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        {ONE_RM_ROWS.map(({ label, key }, i) => (
+          <EditableOneRepMaxRow
+            key={key}
+            label={label}
+            value={oneRMs[key]}
+            isFirst={i === 0}
+            onSave={(next) => onUpdateOneRepMax(key, next)}
+          />
+        ))}
+      </div>
+
+      <div className="px-5 mb-2 flex items-center justify-between">
+        <NL>Theme</NL>
+        <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+          global
+        </NN>
+      </div>
+      <div className="mx-5 mb-5 grid grid-cols-3 gap-2">
+        {SKINS_META.map((s) => {
+          const active = skin === s.k;
+          return (
+            <button
+              key={s.k}
+              type="button"
+              onClick={() => onSkin(s.k)}
+              className="p-3 rounded-2xl border transition text-left"
+              style={{ borderColor: active ? 'var(--fg)' : 'var(--border)' }}
+            >
+              <div className="flex gap-1.5 mb-2">
+                {s.sw.map((color, i) => (
+                  <div
+                    key={i}
+                    className="h-6 flex-1 rounded-md border"
+                    style={{ background: color, borderColor: 'var(--border)' }}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center justify-between">
+                <NN className="text-[11px] font-medium" style={{ color: 'var(--fg)' }}>
+                  {s.l}
+                </NN>
+                {active && <Check size={12} strokeWidth={2.5} style={{ color: 'var(--fg)' }} />}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="px-5 mb-2">
+        <NL>Settings</NL>
+      </div>
+
+      {editMode && (
+        <div
+          className="mx-5 mb-5 border rounded-2xl p-5 space-y-4"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+        >
+          <div>
+            <NL className="block mb-1.5">Name</NL>
+            <input
+              type="text"
+              value={editDisplayName}
+              onChange={(e) => setEditDisplayName(e.target.value)}
+              placeholder="Champion"
+              className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[16px] font-medium"
+              style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
+              <NL>Height</NL>
+              <div className="mt-1 flex items-baseline gap-1">
+                <input
+                  type="number"
+                  value={editHeight}
+                  onChange={(e) => setEditHeight(Number(e.target.value) || 0)}
+                  className="bg-transparent outline-none font-mono tabular-nums text-[20px] font-medium w-full"
+                  style={{ color: 'var(--fg)' }}
+                />
+                <NL className="text-[9px]">cm</NL>
+              </div>
+            </div>
+            <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
+              <NL>Sex</NL>
+              <div className="mt-2 flex gap-1">
+                {(['male', 'female'] as const).map((g) => (
                   <button
-                    key={g.k}
+                    key={g}
                     type="button"
-                    onClick={() => setEditGoal(g.k)}
-                    className="min-h-[44px] rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
+                    onClick={() => setEditGender(g)}
+                    className="flex-1 min-h-[44px] rounded-lg text-[12px] font-medium transition"
                     style={
-                      editGoal === g.k
-                        ? {
-                            background: 'var(--fg)',
-                            color: 'var(--bg)',
-                            borderColor: 'var(--fg)',
-                          }
-                        : { borderColor: 'var(--border)', color: 'var(--muted)' }
+                      editGender === g
+                        ? { background: 'var(--fg)', color: 'var(--bg)' }
+                        : { color: 'var(--muted)', border: '1px solid var(--border)' }
                     }
                   >
-                    {g.l}
+                    {g === 'male' ? 'Male' : 'Female'}
                   </button>
                 ))}
               </div>
             </div>
-
-            <div>
-              <NL className="mb-2 block">Activity</NL>
-              <div className="space-y-2">
-                {ACTIVITY_OPTIONS.map((a) => {
-                  const active = Math.abs(editActivity - a.value) < 0.01;
-                  return (
-                    <button
-                      key={a.value}
-                      type="button"
-                      onClick={() => setEditActivity(a.value)}
-                      className="w-full min-h-[48px] px-4 rounded-xl border flex items-center justify-between transition"
-                      style={{ borderColor: active ? 'var(--fg)' : 'var(--border)' }}
-                    >
-                      <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>
-                        {a.label}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                          {a.sub}
-                        </NN>
-                        <span
-                          className="h-3.5 w-3.5 rounded-full border"
-                          style={
-                            active
-                              ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
-                              : { borderColor: 'var(--border)' }
-                          }
-                        />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <NL className="mb-1.5 block">Date of birth</NL>
-              <input
-                type="date"
-                value={editBirthDate}
-                onChange={(e) => setEditBirthDate(e.target.value)}
-                className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[16px] font-medium"
-                style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] disabled:opacity-50"
-              style={{ background: 'var(--fg)', color: 'var(--bg)' }}
-            >
-              {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Save'}
-            </button>
           </div>
-        )}
 
-        <div className="px-5 mb-6">
+          <div>
+            <NL className="mb-2 block">Goal</NL>
+            <div className="grid grid-cols-3 gap-2">
+              {GOAL_BUTTONS.map((g) => (
+                <button
+                  key={g.k}
+                  type="button"
+                  onClick={() => setEditGoal(g.k)}
+                  className="min-h-[44px] rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
+                  style={
+                    editGoal === g.k
+                      ? {
+                          background: 'var(--fg)',
+                          color: 'var(--bg)',
+                          borderColor: 'var(--fg)',
+                        }
+                      : { borderColor: 'var(--border)', color: 'var(--muted)' }
+                  }
+                >
+                  {g.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <NL className="mb-2 block">Activity</NL>
+            <div className="space-y-2">
+              {ACTIVITY_OPTIONS.map((a) => {
+                const active = Math.abs(editActivity - a.value) < 0.01;
+                return (
+                  <button
+                    key={a.value}
+                    type="button"
+                    onClick={() => setEditActivity(a.value)}
+                    className="w-full min-h-[48px] px-4 rounded-xl border flex items-center justify-between transition"
+                    style={{ borderColor: active ? 'var(--fg)' : 'var(--border)' }}
+                  >
+                    <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>
+                      {a.label}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                        {a.sub}
+                      </NN>
+                      <span
+                        className="h-3.5 w-3.5 rounded-full border"
+                        style={
+                          active
+                            ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
+                            : { borderColor: 'var(--border)' }
+                        }
+                      />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <NL className="mb-1.5 block">Date of birth</NL>
+            <input
+              type="date"
+              value={editBirthDate}
+              onChange={(e) => setEditBirthDate(e.target.value)}
+              className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[16px] font-medium"
+              style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
+            />
+          </div>
+
           <button
             type="button"
-            onClick={onLogout}
-            className="w-full h-12 rounded-2xl border text-[11px] font-medium uppercase tracking-[0.22em] transition hover:opacity-70"
-            style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+            onClick={handleSave}
+            disabled={isSaving}
+            className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] disabled:opacity-50"
+            style={{ background: 'var(--fg)', color: 'var(--bg)' }}
           >
-            Sign out
+            {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Save'}
           </button>
         </div>
+      )}
+
+      <div className="px-5 mb-6">
+        <button
+          type="button"
+          onClick={onLogout}
+          className="w-full h-12 rounded-2xl border text-[11px] font-medium uppercase tracking-[0.22em] transition hover:opacity-70"
+          style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+        >
+          Sign out
+        </button>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -1560,6 +1473,15 @@ export default function App() {
   const [currentDay, setCurrentDay] = useState(1);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [nutritionView, setNutritionView] = useState('dashboard');
+  // Workout "Log set" button is hoisted to the shell's fixed slot (outside the
+  // Framer Motion transformed node). WorkoutScreen registers its action here.
+  const [workoutAction, setWorkoutAction] = useState<{
+    run: () => void;
+    disabled: boolean;
+    loading: boolean;
+  } | null>(null);
+  // Profile edit mode is hoisted so the shared header can drive it.
+  const [profileEditMode, setProfileEditMode] = useState(false);
 
   const [skin, setSkinState] = useState<SkinKey>(() => {
     if (typeof window === 'undefined') return 'mono';
@@ -1683,13 +1605,86 @@ export default function App() {
 
   if (profile && !profile.onboarding_completed) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-6 pt-12">
+      <div
+        className="min-h-screen bg-slate-50 text-slate-900 font-sans px-6"
+        style={{
+          paddingTop: 'calc(var(--safe-top) + 3rem)',
+          paddingBottom: 'calc(var(--safe-bottom) + 1.5rem)',
+        }}
+      >
         <OnboardingWizard />
       </div>
     );
   }
 
   const completedSessionDates = completedSessions.map((s) => s.date);
+
+  const headerForView = (): { title: string; right?: ReactNode } => {
+    switch (currentView) {
+      case 'home':
+        return {
+          title: 'Home',
+          right: (
+            <button
+              type="button"
+              aria-label="Time"
+              className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full"
+              style={{ color: 'var(--fg)' }}
+            >
+              <Clock size={18} strokeWidth={1.5} />
+            </button>
+          ),
+        };
+      case 'workout':
+        return {
+          title: 'Workouts',
+          right: (
+            <div className="flex items-center gap-1 -mr-2">
+              <span
+                className="h-2 w-2 rounded-full animate-pulse"
+                style={{ background: 'var(--fg)' }}
+              />
+              <NN
+                className="text-[10px] uppercase tracking-[0.18em] pr-2"
+                style={{ color: 'var(--muted)' }}
+              >
+                REC
+              </NN>
+            </div>
+          ),
+        };
+      case 'progress':
+        return { title: 'Progress' };
+      case 'profile':
+        return {
+          title: 'Profile',
+          right: (
+            <div className="flex items-center gap-1 -mr-2">
+              <button
+                type="button"
+                onClick={() => setProfileEditMode((v) => !v)}
+                className="text-[10px] font-medium uppercase tracking-[0.16em] transition hover:opacity-70 min-h-[44px] px-3"
+                style={{ color: 'var(--fg)' }}
+                aria-label={profileEditMode ? 'Cancel editing' : 'Edit profile'}
+              >
+                {profileEditMode ? 'Cancel' : 'Edit'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountDialogOpen(true)}
+                className="h-11 w-11 flex items-center justify-center rounded-full transition hover:opacity-70"
+                style={{ color: 'var(--fg)' }}
+                aria-label="Account settings"
+              >
+                <SettingsIcon size={18} strokeWidth={1.75} />
+              </button>
+            </div>
+          ),
+        };
+      default:
+        return { title: '' };
+    }
+  };
 
   const renderView = () => {
     switch (currentView) {
@@ -1717,13 +1712,14 @@ export default function App() {
             setCurrentDay={setCurrentDay}
             onValidate={handleValidateMain}
             loading={loading}
+            onRegisterAction={setWorkoutAction}
           />
         );
       case 'nutrition':
         return (
           <NutritionScreen
             hideBackButton
-            bottomInset={nutritionView === 'dashboard' ? BOTTOM_NAV_INSET_PX : 0}
+            bottomInset="calc(5rem + env(safe-area-inset-bottom))"
             onBack={() => setCurrentView('home')}
             onViewChange={setNutritionView}
           />
@@ -1748,43 +1744,101 @@ export default function App() {
             onLogout={handleLogout}
             onUpdateProfile={updateProfile}
             onUpdateOneRepMax={updateOneRepMax}
-            onOpenAccount={() => setAccountDialogOpen(true)}
             avatarUrl={avatarUrl}
+            editMode={profileEditMode}
+            onExitEdit={() => setProfileEditMode(false)}
           />
         );
     }
   };
 
-  return (
-    <div
-      className="min-h-screen"
-      style={{
-        background: 'var(--bg)',
-        fontFamily: 'var(--font-geist, ui-sans-serif, system-ui, sans-serif)',
-      }}
-    >
-      <div className="relative w-full max-w-md mx-auto" style={{ height: '100svh' }}>
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={currentView}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute inset-0"
-          >
-            {renderView()}
-          </motion.div>
-        </AnimatePresence>
+  const isNutrition = currentView === 'nutrition';
+  const header = headerForView();
+  const showNav = currentView !== 'nutrition' || nutritionView === 'dashboard';
 
-        {(currentView !== 'nutrition' || nutritionView === 'dashboard') && (
-          <BottomNav active={currentView} onNav={handleNav} />
+  return (
+    <>
+      <div
+        className="flex flex-col h-dvh w-full relative overflow-hidden"
+        style={{
+          background: 'var(--bg)',
+          fontFamily: 'var(--font-geist, ui-sans-serif, system-ui, sans-serif)',
+        }}
+      >
+        {!isNutrition && (
+          <header
+            className="flex-none pt-[env(safe-area-inset-top)] z-50"
+            style={{ background: 'var(--bg)' }}
+          >
+            <SHeader title={header.title} right={header.right} />
+          </header>
+        )}
+
+        <main className="flex-1 overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] relative">
+          {isNutrition ? (
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key="nutrition"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                className="absolute inset-0"
+              >
+                {renderView()}
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            <>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={currentView}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                >
+                  <div className="p-4">{renderView()}</div>
+                </motion.div>
+              </AnimatePresence>
+
+              {currentView === 'workout' && workoutAction && (
+                <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-0 w-full px-4 pb-4 z-40">
+                  <button
+                    type="button"
+                    onClick={workoutAction.run}
+                    disabled={workoutAction.disabled}
+                    className="w-full h-20 rounded-2xl flex items-center justify-center gap-3 active:scale-[0.99] transition disabled:opacity-50"
+                    style={{ background: 'var(--fg)', color: 'var(--bg)' }}
+                  >
+                    {workoutAction.loading ? (
+                      <Loader2 size={22} className="animate-spin" />
+                    ) : (
+                      <>
+                        <Check size={22} strokeWidth={2.5} />
+                        <span className="text-[14px] font-medium uppercase tracking-[0.22em]">
+                          Log set
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </main>
+
+        {showNav && (
+          <nav
+            className="flex-none fixed bottom-0 left-0 w-full border-t pb-[env(safe-area-inset-bottom)] z-50"
+            style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+          >
+            <BottomNav active={currentView} onNav={handleNav} />
+          </nav>
         )}
       </div>
 
       <AccountSettingsDialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen} />
-    </div>
+    </>
   );
 }
-
-const BOTTOM_NAV_INSET_PX = 88;
