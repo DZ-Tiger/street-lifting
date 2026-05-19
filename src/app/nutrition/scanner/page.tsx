@@ -19,20 +19,14 @@ import {
   Flame,
   Settings2 as SettingsIcon,
   Image as ImageIcon,
+  Wand2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { supabase } from '@/lib/supabase';
 import { NutritionResponse } from '@/app/api/nutrition/scan/route';
 import { useNutritionStore, HistoryItem } from '@/store/useNutritionStore';
-import {
-  calculateTargets,
-  Gender,
-  GoalType,
-  GOAL_LABELS,
-  ACTIVITY_OPTIONS,
-  caloriesFromMacros,
-} from '@/lib/nutrition';
+import { calculateTargets, GoalType, GOAL_LABELS, caloriesFromMacros } from '@/lib/nutrition';
 import { useStore } from '@/store/useStore';
 import { calculateAge, compressImage, useIsHydrated } from '@/lib/utils';
 
@@ -49,12 +43,6 @@ const PORTIONS = [
   { label: '2×', value: 2 },
 ];
 
-/**
- * All values are CSS variable references — they automatically follow the active skin
- * (mono / carbon / sand) defined in `useSkin.ts`. Use these inside `style={{ ... }}`
- * props. For SVG `stroke` / `fill` ATTRIBUTES (not style), use inline style instead
- * so `var()` resolves correctly.
- */
 const PALETTE = {
   bg: 'var(--bg)',
   surface: 'var(--surface)',
@@ -351,11 +339,11 @@ const MealRow = ({
               onDelete(meal.id);
             }
           }}
-          className="ml-2 h-11 w-11 inline-flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 hover:opacity-70 transition cursor-pointer"
-          style={{ color: PALETTE.muted }}
+          className="ml-3 h-10 w-10 inline-flex items-center justify-center rounded-xl border active:scale-95 transition cursor-pointer"
+          style={{ color: PALETTE.muted, borderColor: PALETTE.border, background: PALETTE.surface }}
           aria-label="Delete meal"
         >
-          <Trash2 size={15} />
+          <Trash2 size={14} />
         </span>
       </div>
     </div>
@@ -934,200 +922,6 @@ const ResultView = ({
   );
 };
 
-/* ─────────────────────── Settings Sheet ─────────────────────── */
-
-interface NutritionProfileSnapshot {
-  height: number;
-  age: number;
-  gender: Gender;
-  activityLevel: number;
-  goal: GoalType;
-}
-
-const SettingsSheet = ({
-  open,
-  onClose,
-  bodyWeight,
-  nutritionProfile,
-  onSave,
-  isSaving,
-}: {
-  open: boolean;
-  onClose: () => void;
-  bodyWeight: number;
-  nutritionProfile: NutritionProfileSnapshot;
-  onSave: (data: {
-    weight: number;
-    height: number;
-    age: number;
-    gender: Gender;
-    activity: number;
-    goal: GoalType;
-  }) => void;
-  isSaving: boolean;
-}) => {
-  const [weight, setWeight] = useState(bodyWeight);
-  const [height, setHeight] = useState(nutritionProfile.height);
-  const [age, setAge] = useState(nutritionProfile.age);
-  const [gender, setGender] = useState<Gender>(nutritionProfile.gender);
-  const [activity, setActivity] = useState(nutritionProfile.activityLevel);
-  const [goal, setGoal] = useState<GoalType>(nutritionProfile.goal);
-
-  if (!open) return null;
-
-  return (
-    <div className="absolute inset-0 z-50 flex items-end">
-      <div role="presentation" className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div
-        className="relative w-full rounded-t-[28px] border-t max-h-[88%] overflow-y-auto"
-        style={{ background: PALETTE.bg, borderColor: PALETTE.border }}
-      >
-        <div className="px-5 pt-3 pb-2 flex justify-center">
-          <div className="h-1 w-9 rounded-full" style={{ background: PALETTE.border }} />
-        </div>
-        <div className="px-5 pb-2 pt-1 flex items-center justify-between">
-          <div className="text-[16px] font-medium" style={{ color: PALETTE.fg }}>
-            Settings
-          </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="h-11 w-11 rounded-full flex items-center justify-center hover:opacity-70"
-            style={{ color: PALETTE.fg }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-        <HDivider />
-
-        <div className="px-5 py-5 space-y-6">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { l: 'Weight', val: weight, set: setWeight, u: 'kg' },
-              { l: 'Height', val: height, set: setHeight, u: 'cm' },
-              { l: 'Age', val: age, set: setAge, u: 'yrs' },
-            ].map((f) => (
-              <div
-                key={f.l}
-                className="border rounded-xl p-3"
-                style={{ borderColor: PALETTE.border }}
-              >
-                <NL>{f.l}</NL>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <input
-                    type="number"
-                    value={f.val}
-                    onChange={(e) => f.set(Number(e.target.value) || 0)}
-                    className="bg-transparent outline-none font-mono tabular-nums text-[20px] font-medium w-full"
-                    style={{ color: PALETTE.fg }}
-                  />
-                  <NL className="text-[9px]">{f.u}</NL>
-                </div>
-              </div>
-            ))}
-            <div className="border rounded-xl p-3" style={{ borderColor: PALETTE.border }}>
-              <NL>Sex</NL>
-              <div className="mt-2 flex gap-1">
-                {(['male', 'female'] as Gender[]).map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setGender(g)}
-                    className="flex-1 min-h-[44px] rounded-lg text-[12px] font-medium transition"
-                    style={
-                      gender === g
-                        ? { background: PALETTE.fg, color: PALETTE.bg }
-                        : { color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }
-                    }
-                  >
-                    {g === 'male' ? 'Male' : 'Female'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <NL className="mb-2 block">Goal</NL>
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  { k: 'cut' as GoalType, l: 'Cut' },
-                  { k: 'maintain' as GoalType, l: 'Maintain' },
-                  { k: 'bulk' as GoalType, l: 'Bulk' },
-                ] as const
-              ).map((g) => (
-                <button
-                  key={g.k}
-                  type="button"
-                  onClick={() => setGoal(g.k)}
-                  className="min-h-[44px] rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
-                  style={
-                    goal === g.k
-                      ? { background: PALETTE.fg, color: PALETTE.bg, borderColor: PALETTE.fg }
-                      : { borderColor: PALETTE.border, color: PALETTE.muted }
-                  }
-                >
-                  {g.l}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <NL className="mb-2 block">Activity</NL>
-            <div className="space-y-2">
-              {ACTIVITY_OPTIONS.map((a) => {
-                const active = Math.abs(activity - a.value) < 0.01;
-                return (
-                  <button
-                    key={a.value}
-                    type="button"
-                    onClick={() => setActivity(a.value)}
-                    className="w-full min-h-[48px] px-4 rounded-xl border flex items-center justify-between transition"
-                    style={{ borderColor: active ? PALETTE.fg : PALETTE.border }}
-                  >
-                    <span className="text-[13px] font-medium" style={{ color: PALETTE.fg }}>
-                      {a.label}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <NN
-                        className="text-[10px]"
-                        style={{ color: PALETTE.muted } as React.CSSProperties}
-                      >
-                        {a.sub}
-                      </NN>
-                      <span
-                        className="h-3.5 w-3.5 rounded-full border"
-                        style={
-                          active
-                            ? { background: PALETTE.fg, borderColor: PALETTE.fg }
-                            : { borderColor: PALETTE.border }
-                        }
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onSave({ weight, height, age, gender, activity, goal })}
-            disabled={isSaving}
-            className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] disabled:opacity-50 transition"
-            style={{ background: PALETTE.fg, color: PALETTE.bg }}
-          >
-            {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Save'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 /* ─────────────────────── Manual Entry Sheet ─────────────────────── */
 
 const ManualSheet = ({
@@ -1152,6 +946,34 @@ const ManualSheet = ({
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
+  const [isAIFilling, setIsAIFilling] = useState(false);
+
+  const handleAIFill = async () => {
+    if (!name.trim()) {
+      toast.error('Please enter a meal name first.');
+      return;
+    }
+    setIsAIFilling(true);
+    try {
+      const res = await fetch('/api/nutrition/guess', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mealName: name }),
+      });
+      if (!res.ok) throw new Error('Failed to guess macros');
+      const data = await res.json();
+      setCalories(String(data.calories));
+      setProtein(String(data.macros.protein));
+      setCarbs(String(data.macros.carbs));
+      setFat(String(data.macros.fat));
+      toast.success('Macros estimated by AI!');
+    } catch (error) {
+      console.error('AI fill error', error);
+      toast.error('Could not estimate macros.');
+    } finally {
+      setIsAIFilling(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -1202,7 +1024,19 @@ const ManualSheet = ({
 
         <div className="px-5 py-5 space-y-4">
           <div>
-            <NL className="block mb-1.5">Meal name</NL>
+            <div className="flex items-center justify-between mb-1.5">
+              <NL className="block">Meal name</NL>
+              <button
+                type="button"
+                onClick={handleAIFill}
+                disabled={isAIFilling || !name.trim()}
+                className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-medium transition disabled:opacity-50 hover:opacity-80"
+                style={{ color: PALETTE.fg }}
+              >
+                {isAIFilling ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                Auto-fill
+              </button>
+            </div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -1294,9 +1128,16 @@ async function lookupBarcode(barcode: string): Promise<NutritionResponse | null>
 
 /* ─────────────────────── BarcodeReaderView ─────────────────────── */
 
-const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => void }) => {
+const BarcodeReaderView = ({
+  onDetected,
+  isActive,
+}: {
+  onDetected: (barcode: string) => void;
+  isActive: boolean;
+}) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const onDetectedRef = React.useRef(onDetected);
+  const isActiveRef = React.useRef(isActive);
   const [permState, setPermState] = React.useState<
     'checking' | 'granted' | 'denied' | 'unavailable'
   >('checking');
@@ -1304,13 +1145,20 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
 
   React.useEffect(() => {
     onDetectedRef.current = onDetected;
-  });
+    isActiveRef.current = isActive;
+  }, [onDetected, isActive]);
 
   React.useEffect(() => {
     if (!videoRef.current) return;
     let stopped = false;
     let stream: MediaStream | null = null;
     let stopReader: (() => void) | null = null;
+
+    const originalWarn = console.warn;
+    console.warn = (...args) => {
+      if (typeof args[0] === 'string' && args[0].includes('non-ReaderException')) return;
+      originalWarn(...args);
+    };
 
     const start = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -1343,11 +1191,22 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
         }
         const reader = new BrowserMultiFormatReader();
         reader
-          .decodeFromStream(stream!, videoRef.current!, (result, _err, controls) => {
-            if (result && !stopped) {
+          .decodeFromStream(stream!, videoRef.current!, (result, err, controls) => {
+            if (result && !stopped && isActiveRef.current) {
               stopped = true;
               controls.stop();
               onDetectedRef.current(result.getText());
+            }
+            if (err) {
+              if (
+                err.name === 'NotFoundException' ||
+                err.name === 'ChecksumException' ||
+                err.name === 'FormatException'
+              ) {
+                // Noise
+              } else {
+                console.error(err);
+              }
             }
             if (!stopReader) stopReader = () => controls.stop();
           })
@@ -1370,18 +1229,16 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
       stopped = true;
       stopReader?.();
       stream?.getTracks().forEach((t) => t.stop());
+      console.warn = originalWarn;
     };
   }, [retryCount]);
 
   if (permState === 'denied') {
     return (
-      <div
-        className="relative w-full rounded-[28px] overflow-hidden flex flex-col items-center justify-center gap-5 px-8 text-center"
-        style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
-      >
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-8 text-center bg-black/90">
         <Camera size={36} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.3)' }} />
         <p className="text-[12px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
-          Camera access is required to scan barcodes.
+          Camera access is required to scan.
           <br />
           Enable it in your browser or device settings.
         </p>
@@ -1402,10 +1259,7 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
 
   if (permState === 'unavailable') {
     return (
-      <div
-        className="relative w-full rounded-[28px] overflow-hidden flex flex-col items-center justify-center gap-4 px-8 text-center"
-        style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
-      >
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center bg-black/90">
         <Camera size={36} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.2)' }} />
         <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
           Camera unavailable on this device.
@@ -1415,10 +1269,7 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
   }
 
   return (
-    <div
-      className="relative w-full rounded-[28px] overflow-hidden"
-      style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
-    >
+    <div className="absolute inset-0 bg-black">
       <video
         ref={videoRef}
         className="absolute inset-0 w-full h-full object-cover"
@@ -1426,7 +1277,7 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
         muted
       />
       {permState === 'checking' && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
           <Loader2
             size={24}
             strokeWidth={1.5}
@@ -1435,18 +1286,6 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
           />
         </div>
       )}
-      <div className="absolute inset-4 text-white/80">
-        <CornerBracket position="tl" />
-        <CornerBracket position="tr" />
-        <CornerBracket position="bl" />
-        <CornerBracket position="br" />
-      </div>
-      <div className="absolute bottom-4 left-0 right-0 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
-          <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-          <NL className="text-white/80 text-[9px] tracking-[0.22em]">Point at a barcode</NL>
-        </div>
-      </div>
     </div>
   );
 };
@@ -1454,10 +1293,9 @@ const BarcodeReaderView = ({ onDetected }: { onDetected: (barcode: string) => vo
 /* ─────────────────────── Main Page ─────────────────────── */
 
 type ViewType = 'dashboard' | 'scanner' | 'analyzing' | 'result' | 'detail';
-type ScanMode = 'ai' | 'gallery' | 'barcode';
+type ScanMode = 'ai' | 'barcode';
 
 const SCAN_TABS: { k: ScanMode; l: string }[] = [
-  { k: 'gallery', l: 'Gallery' },
   { k: 'ai', l: 'AI scan' },
   { k: 'barcode', l: 'Barcode' },
 ];
@@ -1475,6 +1313,8 @@ export interface NutritionScreenProps {
   hideBackButton?: boolean;
   /** Notifies the parent whenever the internal view changes (useful for hiding BottomNav). */
   onViewChange?: (view: string) => void;
+  /** Callback to open global settings. */
+  onOpenSettings?: () => void;
 }
 
 export function NutritionScreen({
@@ -1482,6 +1322,7 @@ export function NutritionScreen({
   bottomInset = 'env(safe-area-inset-bottom, 0px)',
   hideBackButton = false,
   onViewChange,
+  onOpenSettings,
 }: NutritionScreenProps = {}) {
   useSkin();
   const router = useRouter();
@@ -1490,19 +1331,8 @@ export function NutritionScreen({
 
   const handleBack = onBack ?? (() => router.back());
 
-  const { profile: appProfile, updateBodyweight, updateProfile } = useStore();
+  const { profile: appProfile } = useStore();
   const bodyWeight = appProfile?.body_weight || 80;
-
-  const nutritionProfile = useMemo<NutritionProfileSnapshot>(
-    () => ({
-      height: appProfile?.height ?? 180,
-      age: calculateAge(appProfile?.birth_date ?? ''),
-      gender: appProfile?.gender ?? 'male',
-      activityLevel: appProfile?.activity_level ?? 1.55,
-      goal: appProfile?.goal_program ?? 'maintain',
-    }),
-    [appProfile]
-  );
 
   const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros, fetchMeals } =
     useNutritionStore();
@@ -1519,7 +1349,6 @@ export function NutritionScreen({
   const [image, setImage] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<NutritionResponse | null>(null);
   const [selectedMeal, setSelectedMeal] = useState<HistoryItem | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [scanMode, setScanMode] = useState<ScanMode>('ai');
@@ -1555,14 +1384,14 @@ export function NutritionScreen({
   const targets = useMemo(
     () =>
       calculateTargets(
-        nutritionProfile.height,
-        nutritionProfile.age,
-        nutritionProfile.gender,
-        nutritionProfile.activityLevel,
-        nutritionProfile.goal,
+        appProfile?.height ?? 180,
+        calculateAge(appProfile?.birth_date ?? ''),
+        appProfile?.gender ?? 'male',
+        appProfile?.activity_level ?? 1.55,
+        appProfile?.goal_program ?? 'maintain',
         bodyWeight
       ),
-    [nutritionProfile, bodyWeight]
+    [appProfile, bodyWeight]
   );
 
   const totals = useMemo(
@@ -1670,33 +1499,6 @@ export function NutritionScreen({
     }
   };
 
-  const handleSaveSettings = async (data: {
-    weight: number;
-    height: number;
-    age: number;
-    gender: Gender;
-    activity: number;
-    goal: GoalType;
-  }) => {
-    setIsSaving(true);
-    try {
-      if (data.weight !== bodyWeight) await updateBodyweight(data.weight);
-      await updateProfile({
-        height: data.height,
-        gender: data.gender,
-        activity_level: data.activity,
-        goal_program: data.goal,
-      });
-      toast.success('Settings updated.');
-      setSettingsOpen(false);
-    } catch (error) {
-      console.error('Settings save failed', error);
-      toast.error('Update failed.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleManualSave = async (data: {
     name: string;
     calories: number;
@@ -1790,7 +1592,7 @@ export function NutritionScreen({
         <button
           type="button"
           aria-label="Open settings"
-          onClick={() => setSettingsOpen(true)}
+          onClick={onOpenSettings}
           className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full transition hover:opacity-70 active:scale-95"
           style={{ color: PALETTE.fg }}
         >
@@ -1826,7 +1628,11 @@ export function NutritionScreen({
               className="h-1.5 w-1.5 rounded-full animate-pulse"
               style={{ background: PALETTE.fg }}
             />
-            <NL className="text-[9px] tracking-[0.2em]">{GOAL_LABELS[nutritionProfile.goal]}</NL>
+            <NL className="text-[9px] tracking-[0.2em]">
+              {appProfile?.goal_program
+                ? GOAL_LABELS[appProfile.goal_program as GoalType]
+                : 'Maintain'}
+            </NL>
           </div>
         </div>
 
@@ -1949,92 +1755,76 @@ export function NutritionScreen({
   );
 
   const renderScanner = () => (
-    <div className="absolute inset-0 flex flex-col" style={{ background: PALETTE.carbon }}>
-      <div className="flex items-center justify-between px-5 pt-3 pb-4">
+    <div className="absolute inset-0 overflow-hidden" style={{ background: PALETTE.carbon }}>
+      <BarcodeReaderView onDetected={handleBarcodeDetected} isActive={scanMode === 'barcode'} />
+
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-5 pt-3 pb-4 z-10 bg-gradient-to-b from-black/50 to-transparent">
         <button
           type="button"
           aria-label="Back"
           onClick={() => changeView('dashboard')}
-          className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
+          className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition backdrop-blur-md"
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
         </button>
-        <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white">
+        <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-white drop-shadow-md">
           Scanner
         </div>
-        <button
-          type="button"
-          aria-label="Open camera"
-          onClick={() => {
-            setScanMode('ai');
-            fileInputRef.current?.click();
-          }}
-          className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full text-white/70 hover:bg-white/10 transition"
-        >
-          <Camera size={18} />
-        </button>
+        <div className="h-11 w-11 -mr-2" />
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-6">
-        {scanMode === 'barcode' ? (
-          <BarcodeReaderView onDetected={handleBarcodeDetected} />
-        ) : (
-          <div
-            className="relative w-full rounded-[28px] overflow-hidden"
-            style={{ aspectRatio: '4/5', background: PALETTE.carbon2 }}
-          >
+      <div
+        className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10"
+        style={{ paddingTop: '60px', paddingBottom: '160px' }}
+      >
+        <div className="relative w-[80%] max-w-[320px] aspect-square">
+          {scanMode === 'ai' && (
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 opacity-50"
               style={{
                 backgroundImage:
-                  'repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 8px, transparent 8px 16px)',
+                  'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0 8px, transparent 8px 16px)',
               }}
             />
-            <div className="absolute inset-0 flex">
-              <div className="flex-1 border-r border-white/5" />
-              <div className="flex-1 border-r border-white/5" />
-              <div className="flex-1" />
+          )}
+          <div className="absolute inset-0 text-white/80 drop-shadow-md">
+            <CornerBracket position="tl" />
+            <CornerBracket position="tr" />
+            <CornerBracket position="bl" />
+            <CornerBracket position="br" />
+          </div>
+          {scanMode === 'ai' && (
+            <div className="absolute inset-0 flex items-center justify-center opacity-80">
+              <div className="h-px w-3 bg-white/60 drop-shadow-md" />
+              <div className="absolute h-3 w-px bg-white/60 drop-shadow-md" />
+              <div className="absolute h-10 w-10 rounded-full border border-white/30 drop-shadow-md" />
             </div>
-            <div className="absolute inset-0 flex flex-col">
-              <div className="flex-1 border-b border-white/5" />
-              <div className="flex-1 border-b border-white/5" />
-              <div className="flex-1" />
-            </div>
-            <div className="absolute inset-4 text-white/80">
-              <CornerBracket position="tl" />
-              <CornerBracket position="tr" />
-              <CornerBracket position="bl" />
-              <CornerBracket position="br" />
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-px w-3 bg-white/40" />
-              <div className="absolute h-3 w-px bg-white/40" />
-              <div className="absolute h-10 w-10 rounded-full border border-white/15" />
-            </div>
-            <div className="absolute bottom-4 left-0 right-0 text-center">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+          )}
+          {scanMode === 'barcode' && (
+            <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10 backdrop-blur-md">
                 <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                <NL className="text-white/80 text-[9px] tracking-[0.22em]">
-                  {scanMode === 'gallery' ? 'Select from gallery' : 'Frame the dish'}
-                </NL>
+                <NL className="text-white/80 text-[9px] tracking-[0.22em]">Auto-scanning</NL>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <div className="px-6 pt-4" style={{ paddingBottom: 'calc(var(--safe-bottom) + 2.5rem)' }}>
-        <div className="flex items-center justify-center gap-6 mb-6">
+      <div
+        className="absolute bottom-0 left-0 right-0 px-6 pt-12 pb-10 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
+        style={{ paddingBottom: 'calc(var(--safe-bottom) + 2.5rem)' }}
+      >
+        <div className="flex items-center justify-center gap-8 mb-6">
           {SCAN_TABS.map(({ k, l }) => (
             <button
               key={k}
               type="button"
               onClick={() => setScanMode(k)}
-              className="min-h-[44px] px-2 transition active:opacity-60"
+              className="px-2 py-2 transition active:opacity-60"
             >
               <NL
-                className={`tracking-[0.22em] transition ${scanMode === k ? '' : 'opacity-40'}`}
-                style={{ color: 'white' }}
+                className={`tracking-[0.22em] transition drop-shadow-md ${scanMode === k ? 'text-white' : 'text-white/40'}`}
               >
                 {l}
               </NL>
@@ -2046,7 +1836,6 @@ export function NutritionScreen({
             type="button"
             aria-label="Open gallery"
             onClick={() => {
-              setScanMode('gallery');
               galleryInputRef.current?.click();
             }}
             className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
@@ -2059,30 +1848,18 @@ export function NutritionScreen({
             disabled={scanMode === 'barcode'}
             onClick={() => {
               if (scanMode === 'ai') fileInputRef.current?.click();
-              else if (scanMode === 'gallery') galleryInputRef.current?.click();
             }}
-            className="relative h-20 w-20 rounded-full border-2 border-white/80 flex items-center justify-center active:scale-95 transition disabled:opacity-40"
+            className="relative h-[76px] w-[76px] rounded-full border-[3px] border-white/80 flex items-center justify-center active:scale-95 transition disabled:opacity-50"
           >
             {scanMode === 'barcode' ? (
-              <span className="h-[60px] w-[60px] rounded-full border-2 border-white/40 flex items-center justify-center">
-                <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+              <span className="h-[60px] w-[60px] rounded-full border-2 border-white/40 flex items-center justify-center backdrop-blur-sm">
+                <span className="h-2.5 w-2.5 rounded-full bg-white animate-pulse" />
               </span>
             ) : (
               <span className="h-[60px] w-[60px] rounded-full bg-white" />
             )}
           </button>
-          <button
-            type="button"
-            aria-label="Reset"
-            onClick={() => {
-              setImage(null);
-              setScanResult(null);
-              setScanMode('ai');
-            }}
-            className="h-12 w-12 rounded-2xl border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/5 transition"
-          >
-            <RotateCcw size={18} />
-          </button>
+          <div className="h-12 w-12" />
         </div>
       </div>
 
@@ -2159,19 +1936,6 @@ export function NutritionScreen({
           />
         )}
 
-        <SettingsSheet
-          key={
-            settingsOpen
-              ? `${bodyWeight}-${nutritionProfile.height}-${nutritionProfile.age}-${nutritionProfile.gender}-${nutritionProfile.activityLevel}-${nutritionProfile.goal}`
-              : 'settings-closed'
-          }
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          bodyWeight={bodyWeight}
-          nutritionProfile={nutritionProfile}
-          onSave={handleSaveSettings}
-          isSaving={isSaving}
-        />
         <ManualSheet
           open={manualOpen}
           onClose={() => setManualOpen(false)}
@@ -2183,11 +1947,6 @@ export function NutritionScreen({
   );
 }
 
-/**
- * Route entry point. Renders the same screen as the inline `<NutritionScreen />`
- * used by the main app tab, but falls back to `router.back()` for the close button
- * and provides its own viewport sizing.
- */
 export default function NutritionRoutePage() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>

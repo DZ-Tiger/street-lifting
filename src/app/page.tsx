@@ -13,15 +13,13 @@ import {
   UserProfile,
 } from '@/store/useStore';
 import { useNutritionStore } from '@/store/useNutritionStore';
-import { calculateTargets, GoalType, Gender, ACTIVITY_OPTIONS } from '@/lib/nutrition';
+import { calculateTargets, Gender, NutritionTargets } from '@/lib/nutrition';
 import { calculateAge, formatSeconds, useIsHydrated } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
-import { AccountSettingsDialog } from '@/components/AccountSettingsDialog';
+import { ProfileSettingsDialog } from '@/components/ProfileSettingsDialog';
 import { NutritionScreen } from '@/app/nutrition/scanner/page';
-import { Input } from '@/components/ui/input';
 import { SKINS, SkinKey, SKIN_STORAGE_KEY, applySkin } from '@/lib/useSkin';
 import {
   Check,
@@ -33,14 +31,12 @@ import {
   Loader2,
   Minus,
   Pause,
-  Pencil,
   Play,
   Plus,
   Settings2 as SettingsIcon,
   TrendingUp,
   User,
   Utensils,
-  X,
 } from 'lucide-react';
 
 /* ─────────────────────── Micro-components ─────────────────────── */
@@ -317,7 +313,7 @@ interface HomeScreenProps {
   completedSessionDates: string[];
   template: ReturnType<typeof getSessionTemplate>;
   nutritionTotals: { calories: number; protein: number; carbs: number; fat: number };
-  nutritionTarget: number;
+  nutritionTargets: NutritionTargets;
   currentWeek: number;
 }
 
@@ -330,7 +326,7 @@ const HomeScreen = ({
   completedSessionDates,
   template,
   nutritionTotals,
-  nutritionTarget,
+  nutritionTargets,
   currentWeek,
 }: HomeScreenProps) => {
   const today = new Date();
@@ -343,7 +339,7 @@ const HomeScreen = ({
     return { day: DAY_LETTERS[date.getDay()], done };
   });
 
-  const remaining = Math.max(0, nutritionTarget - nutritionTotals.calories);
+  const remaining = Math.max(0, nutritionTargets.targetCalories - nutritionTotals.calories);
   const greetingName = displayName || (profileGender === 'female' ? 'Athlete' : 'Champion');
 
   return (
@@ -997,122 +993,6 @@ const SKINS_META = [
   { k: 'sand' as SkinKey, l: 'Sand', sw: ['#f6f3ec', '#191813', '#8a8472'] },
 ];
 
-const GOAL_BUTTONS: { k: GoalType; l: string }[] = [
-  { k: 'cut', l: 'Cut' },
-  { k: 'maintain', l: 'Maintain' },
-  { k: 'bulk', l: 'Bulk' },
-];
-
-interface EditableOneRepMaxRowProps {
-  label: string;
-  value: number;
-  onSave: (next: number) => Promise<void>;
-  isFirst: boolean;
-}
-
-const EditableOneRepMaxRow = ({ label, value, onSave, isFirst }: EditableOneRepMaxRowProps) => {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(Math.round(value)));
-  const [saving, setSaving] = useState(false);
-
-  const startEdit = () => {
-    setDraft(String(Math.round(value)));
-    setEditing(true);
-  };
-
-  const cancel = () => {
-    if (saving) return;
-    setEditing(false);
-  };
-
-  const save = async () => {
-    const parsed = Number(draft);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      toast.error('Enter a positive number.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave(parsed);
-      setEditing(false);
-    } catch {
-      toast.error('Update failed.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div
-      className="flex items-center justify-between gap-2 px-4 py-3"
-      style={{ borderTop: !isFirst ? '1px solid var(--border)' : undefined }}
-    >
-      <NL>{label}</NL>
-      {editing ? (
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            inputMode="decimal"
-            step="0.5"
-            min={0}
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') save();
-              if (e.key === 'Escape') cancel();
-            }}
-            className="h-11 w-24 text-right text-[16px] font-mono tabular-nums"
-            style={{ color: 'var(--fg)' }}
-            aria-label={`${label} 1RM in kilograms`}
-          />
-          <NL className="text-[9px]">kg</NL>
-          <button
-            type="button"
-            aria-label="Save"
-            onClick={save}
-            disabled={saving}
-            className="h-11 w-11 rounded-lg flex items-center justify-center disabled:opacity-50"
-            style={{ background: 'var(--fg)', color: 'var(--bg)' }}
-          >
-            {saving ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Check size={14} strokeWidth={2.5} />
-            )}
-          </button>
-          <button
-            type="button"
-            aria-label="Cancel"
-            onClick={cancel}
-            disabled={saving}
-            className="h-11 w-11 rounded-lg border flex items-center justify-center disabled:opacity-50"
-            style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
-          >
-            <X size={14} strokeWidth={1.75} />
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-baseline gap-1">
-          <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
-            {Math.round(value)}
-          </NN>
-          <NL className="text-[9px]">kg</NL>
-          <button
-            type="button"
-            aria-label={`Edit ${label}`}
-            onClick={startEdit}
-            className="ml-2 h-11 w-11 rounded-lg flex items-center justify-center transition hover:opacity-70"
-            style={{ color: 'var(--muted)' }}
-          >
-            <Pencil size={14} strokeWidth={1.75} />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
 interface ProfileScreenProps {
   profile: UserProfile | null;
   bodyWeight: number;
@@ -1460,8 +1340,6 @@ export default function App() {
     fetchProfile,
     fetchTrainingLogs,
     updatePerformance,
-    updateProfile,
-    updateOneRepMax,
     signOut,
   } = useStore();
 
@@ -1471,7 +1349,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentDay, setCurrentDay] = useState(1);
-  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [nutritionView, setNutritionView] = useState('dashboard');
   // Workout "Log set" button is hoisted to the shell's fixed slot (outside the
   // Framer Motion transformed node). WorkoutScreen registers its action here.
@@ -1697,7 +1575,7 @@ export default function App() {
             completedSessionDates={completedSessionDates}
             template={template}
             nutritionTotals={nutritionTotals}
-            nutritionTarget={nutritionTargets.targetCalories}
+            nutritionTargets={nutritionTargets}
             currentWeek={currentWeek}
           />
         );
@@ -1722,6 +1600,7 @@ export default function App() {
             bottomInset="calc(5rem + env(safe-area-inset-bottom))"
             onBack={() => setCurrentView('home')}
             onViewChange={setNutritionView}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         );
       case 'progress':

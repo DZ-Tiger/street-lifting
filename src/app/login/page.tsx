@@ -167,10 +167,19 @@ const Divider = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-const ProviderButton = ({ icon, label }: { icon: ReactNode; label: string }) => (
+const ProviderButton = ({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick?: () => void;
+}) => (
   <button
     type="button"
-    className="h-12 rounded-2xl border flex items-center justify-center gap-3 transition"
+    onClick={onClick}
+    className="h-12 rounded-2xl border flex items-center justify-center gap-3 transition active:opacity-70"
     style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--fg)' }}
   >
     {icon}
@@ -232,10 +241,12 @@ const CTA = ({
 
 const LoginScreen = ({
   onLogin,
+  onGoogleLogin,
   onSwitch,
   loading,
 }: {
   onLogin: (email: string, password: string) => void;
+  onGoogleLogin: () => void;
   onSwitch: () => void;
   loading: boolean;
 }) => {
@@ -323,7 +334,7 @@ const LoginScreen = ({
           <Divider>or continue with</Divider>
           <div className="grid grid-cols-2 gap-2 mt-3">
             <ProviderButton icon={<AppleGlyph />} label="Apple" />
-            <ProviderButton icon={<GoogleGlyph />} label="Google" />
+            <ProviderButton icon={<GoogleGlyph />} label="Google" onClick={onGoogleLogin} />
           </div>
         </div>
 
@@ -340,111 +351,30 @@ const LoginScreen = ({
 
 /* ─────────────────────── Sign Up Screen ─────────────────────── */
 
-const StepIndicator = ({ step }: { step: number }) => (
-  <div className="flex items-center gap-2">
-    {[1, 2, 3].map((s) => {
-      const done = step > s;
-      const active = step === s;
-      return (
-        <div key={s} className="flex items-center gap-2">
-          <div
-            className="h-5 w-5 rounded-full border flex items-center justify-center transition"
-            style={{
-              background: done ? 'var(--fg)' : 'transparent',
-              borderColor: active || done ? 'var(--fg)' : 'var(--border)',
-              color: done ? 'var(--bg)' : active ? 'var(--fg)' : 'var(--muted)',
-            }}
-          >
-            {done ? (
-              <Check size={9} strokeWidth={3} />
-            ) : (
-              <AN className="text-[9px] font-medium">{s}</AN>
-            )}
-          </div>
-          {s < 3 && (
-            <div
-              className="h-px w-6"
-              style={{ background: done ? 'var(--fg)' : 'var(--border)' }}
-            />
-          )}
-        </div>
-      );
-    })}
-  </div>
-);
-
-const Chip = ({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className="min-h-[44px] px-3.5 rounded-full border text-[11px] font-medium transition"
-    style={{
-      background: active ? 'var(--fg)' : 'transparent',
-      borderColor: active ? 'var(--fg)' : 'var(--border)',
-      color: active ? 'var(--bg)' : 'var(--muted)',
-    }}
-  >
-    {children}
-  </button>
-);
-
-const LEVEL_OPTIONS = [
-  { k: 'beginner', l: 'Beginner' },
-  { k: 'intermediate', l: 'Intermediate' },
-  { k: 'advanced', l: 'Advanced' },
-  { k: 'elite', l: 'Elite' },
-];
-
-const GOAL_OPTIONS = [
-  { k: 'strength', l: 'Pure strength', d: '9-week cycle · 5×5 · heavy loads' },
-  { k: 'skill', l: 'Calisthenics skill', d: 'Muscle-up · front lever · planche' },
-  { k: 'hybrid', l: 'Hybrid', d: 'Strength + skill, alternating weeks' },
-  { k: 'endurance', l: 'Endurance', d: 'High volume · moderate loads' },
-];
-
 const SignupScreen = ({
   onSignup,
   onSwitch,
   loading,
 }: {
-  onSignup: (email: string, password: string) => void;
+  onSignup: (name: string, email: string, password: string) => void;
   onSwitch: () => void;
   loading: boolean;
 }) => {
-  const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [weight, setWeight] = useState('80');
-  const [height, setHeight] = useState('178');
-  const [level, setLevel] = useState('intermediate');
-  const [goal, setGoal] = useState('strength');
   const [terms, setTerms] = useState(false);
 
-  const next = () => setStep((s) => Math.min(3, s + 1));
-  const back = () => setStep((s) => Math.max(1, s - 1));
-
   const handleSubmit = () => {
-    if (step < 3) {
-      next();
-    } else {
-      onSignup(email, password);
+    if (!name.trim()) {
+      toast.error('Please enter a username.');
+      return;
     }
-  };
-
-  const bw = parseFloat(weight) || 80;
-  const estimated1RMs = {
-    'Pull-up': `+${Math.round(bw * 0.2)} kg`,
-    Dips: `+${Math.round(bw * 0.3)} kg`,
-    Squat: `${Math.round(bw * 1.1)} kg`,
+    if (!terms) {
+      toast.error('Please agree to the terms of use.');
+      return;
+    }
+    onSignup(name, email, password);
   };
 
   return (
@@ -461,189 +391,74 @@ const SignupScreen = ({
         <button
           type="button"
           aria-label="Back"
-          onClick={step === 1 ? onSwitch : back}
+          onClick={onSwitch}
           className="h-11 w-11 -ml-2 flex items-center justify-center rounded-full transition"
           style={{ color: 'var(--fg)' }}
         >
           <ChevronLeft size={18} strokeWidth={1.75} />
         </button>
-        <StepIndicator step={step} />
+        <Wordmark />
         <div className="h-11 w-11" />
       </div>
 
       <div className="relative flex-1 overflow-y-auto">
         <div className="px-5 pt-4 pb-5">
-          <AL>
-            Step {step} / 3 · {step === 1 ? 'account' : step === 2 ? 'profile' : 'goal'}
-          </AL>
+          <AL>Join us</AL>
           <div className="mt-2 text-[28px] font-medium leading-[1.05] tracking-tight">
-            {step === 1 && (
-              <>
-                Create your <span style={{ color: 'var(--muted)' }}>account.</span>
-              </>
-            )}
-            {step === 2 && (
-              <>
-                Calibrate your <span style={{ color: 'var(--muted)' }}>baselines.</span>
-              </>
-            )}
-            {step === 3 && (
-              <>
-                Define your <span style={{ color: 'var(--muted)' }}>goal.</span>
-              </>
-            )}
+            Create your <span style={{ color: 'var(--muted)' }}>account.</span>
           </div>
         </div>
 
-        {step === 1 && (
-          <div className="px-5 space-y-5">
-            <Field label="Full name" value={name} onChange={setName} autoComplete="name" />
-            <Field
-              label="Email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={setEmail}
-              placeholder="you@email.com"
-            />
-            <Field
-              label="Password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={setPassword}
-              placeholder="8 characters min"
-              right={
-                <div className="flex items-center gap-1">
-                  {[0, 1, 2, 3].map((i) => (
-                    <span
-                      key={i}
-                      className="h-[3px] w-4 rounded-full transition"
-                      style={{
-                        background: password.length > i * 2 ? 'var(--fg)' : 'var(--border)',
-                      }}
-                    />
-                  ))}
-                </div>
-              }
-            />
-            <div className="pt-1">
-              <CheckboxField checked={terms} onChange={setTerms}>
-                I agree to the terms of use and the privacy policy.
-              </CheckboxField>
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="px-5 space-y-5">
-            <div className="grid grid-cols-2 gap-4">
-              <Field
-                label="Weight"
-                value={weight}
-                onChange={setWeight}
-                right={<AL className="text-[9px]">kg</AL>}
-              />
-              <Field
-                label="Height"
-                value={height}
-                onChange={setHeight}
-                right={<AL className="text-[9px]">cm</AL>}
-              />
-            </div>
-            <div>
-              <AL className="block mb-2">Current level</AL>
-              <div className="flex flex-wrap gap-2">
-                {LEVEL_OPTIONS.map((o) => (
-                  <Chip key={o.k} active={level === o.k} onClick={() => setLevel(o.k)}>
-                    {o.l}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-            <div
-              className="border rounded-2xl p-4"
-              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <AL>Estimated 1RM · auto</AL>
-                <AN className="text-[9px]" style={{ color: 'var(--muted)' } as React.CSSProperties}>
-                  editable later
-                </AN>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {(Object.entries(estimated1RMs) as [string, string][]).map(([label, val]) => (
-                  <div
-                    key={label}
-                    className="px-2 py-2 rounded-lg border text-center"
-                    style={{ borderColor: 'var(--border)' }}
-                  >
-                    <AN
-                      className="block text-[16px] font-medium leading-none"
-                      style={{ color: 'var(--fg)' } as React.CSSProperties}
-                    >
-                      {val}
-                    </AN>
-                    <AL className="text-[8px] tracking-[0.22em] mt-1 block">{label}</AL>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="px-5 space-y-3">
-            {GOAL_OPTIONS.map((o) => {
-              const active = goal === o.k;
-              return (
-                <button
-                  key={o.k}
-                  type="button"
-                  onClick={() => setGoal(o.k)}
-                  className="w-full text-left p-4 rounded-2xl border transition flex items-start gap-3 min-h-[44px]"
-                  style={{
-                    borderColor: active ? 'var(--fg)' : 'var(--border)',
-                    background: active ? 'var(--surface-2)' : 'var(--surface)',
-                  }}
-                >
+        <div className="px-5 space-y-5">
+          <Field label="Username" value={name} onChange={setName} autoComplete="username" />
+          <Field
+            label="Email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={setEmail}
+            placeholder="you@email.com"
+          />
+          <Field
+            label="Password"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={setPassword}
+            placeholder="8 characters min"
+            right={
+              <div className="flex items-center gap-1">
+                {[0, 1, 2, 3].map((i) => (
                   <span
-                    className="mt-[2px] h-4 w-4 rounded-full border flex items-center justify-center shrink-0"
-                    style={{ borderColor: active ? 'var(--fg)' : 'var(--border)' }}
-                  >
-                    {active && (
-                      <span className="h-2 w-2 rounded-full" style={{ background: 'var(--fg)' }} />
-                    )}
-                  </span>
-                  <div className="flex-1">
-                    <div className="text-[14px] font-medium leading-tight">{o.l}</div>
-                    <AN
-                      className="block mt-0.5 text-[10px]"
-                      style={{ color: 'var(--muted)' } as React.CSSProperties}
-                    >
-                      {o.d}
-                    </AN>
-                  </div>
-                </button>
-              );
-            })}
+                    key={i}
+                    className="h-[3px] w-4 rounded-full transition"
+                    style={{
+                      background: password.length > i * 2 ? 'var(--fg)' : 'var(--border)',
+                    }}
+                  />
+                ))}
+              </div>
+            }
+          />
+          <div className="pt-1">
+            <CheckboxField checked={terms} onChange={setTerms}>
+              I agree to the terms of use and the privacy policy.
+            </CheckboxField>
           </div>
-        )}
+        </div>
 
         <div className="px-5 mt-7" style={{ paddingBottom: 'calc(var(--safe-bottom) + 1.5rem)' }}>
           <CTA onClick={handleSubmit} loading={loading}>
-            {step === 3 ? 'Start my cycle' : 'Continue'}
+            Create account
           </CTA>
-          {step === 1 && (
-            <button
-              type="button"
-              onClick={onSwitch}
-              className="w-full mt-3 min-h-[44px] text-[11px] uppercase tracking-[0.18em] transition"
-              style={{ color: 'var(--muted)' }}
-            >
-              Already a member · sign in
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onSwitch}
+            className="w-full mt-3 min-h-[44px] text-[11px] uppercase tracking-[0.18em] transition"
+            style={{ color: 'var(--muted)' }}
+          >
+            Already a member · sign in
+          </button>
         </div>
       </div>
     </div>
@@ -692,9 +507,27 @@ export default function LoginPage() {
     setLoading(false);
   };
 
-  const handleSignup = async (email: string, password: string) => {
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    if (error) toast.error(error.message);
+  };
+
+  const handleSignup = async (name: string, email: string, password: string) => {
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: name,
+        },
+      },
+    });
     if (error) {
       toast.error(error.message);
     } else {
@@ -714,7 +547,12 @@ export default function LoginPage() {
         style={{ height: '100svh', maxHeight: '844px' }}
       >
         {mode === 'login' ? (
-          <LoginScreen onLogin={handleLogin} onSwitch={() => setMode('signup')} loading={loading} />
+          <LoginScreen
+            onLogin={handleLogin}
+            onGoogleLogin={handleGoogleLogin}
+            onSwitch={() => setMode('signup')}
+            loading={loading}
+          />
         ) : (
           <SignupScreen
             onSignup={handleSignup}
