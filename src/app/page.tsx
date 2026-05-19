@@ -1456,7 +1456,6 @@ export default function App() {
             bottomInset={nutritionView === 'dashboard' ? BOTTOM_NAV_INSET_PX : 0}
             onBack={() => setCurrentView('home')}
             onViewChange={setNutritionView}
-            onOpenSettings={() => setSettingsOpen(true)}
           />
         );
       case 'progress':
