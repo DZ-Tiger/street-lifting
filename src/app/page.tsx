@@ -13,21 +13,13 @@ import {
   UserProfile,
 } from '@/store/useStore';
 import { useNutritionStore } from '@/store/useNutritionStore';
-import {
-  calculateTargets,
-  GoalType,
-  Gender,
-  ACTIVITY_OPTIONS,
-  NutritionTargets,
-} from '@/lib/nutrition';
+import { calculateTargets, Gender, NutritionTargets } from '@/lib/nutrition';
 import { calculateAge, formatSeconds, useIsHydrated } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
-import { AccountSettingsDialog } from '@/components/AccountSettingsDialog';
+import { ProfileSettingsDialog } from '@/components/ProfileSettingsDialog';
 import { NutritionScreen } from '@/app/nutrition/scanner/page';
-import { Input } from '@/components/ui/input';
 import { SKINS, SkinKey, SKIN_STORAGE_KEY, applySkin } from '@/lib/useSkin';
 import {
   Check,
@@ -39,14 +31,12 @@ import {
   Loader2,
   Minus,
   Pause,
-  Pencil,
   Play,
   Plus,
   Settings2 as SettingsIcon,
   TrendingUp,
   User,
   Utensils,
-  X,
 } from 'lucide-react';
 
 /* ─────────────────────── Micro-components ─────────────────────── */
@@ -1091,122 +1081,6 @@ const SKINS_META = [
   { k: 'sand' as SkinKey, l: 'Sand', sw: ['#f6f3ec', '#191813', '#8a8472'] },
 ];
 
-const GOAL_BUTTONS: { k: GoalType; l: string }[] = [
-  { k: 'cut', l: 'Cut' },
-  { k: 'maintain', l: 'Maintain' },
-  { k: 'bulk', l: 'Bulk' },
-];
-
-interface EditableOneRepMaxRowProps {
-  label: string;
-  value: number;
-  onSave: (next: number) => Promise<void>;
-  isFirst: boolean;
-}
-
-const EditableOneRepMaxRow = ({ label, value, onSave, isFirst }: EditableOneRepMaxRowProps) => {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(Math.round(value)));
-  const [saving, setSaving] = useState(false);
-
-  const startEdit = () => {
-    setDraft(String(Math.round(value)));
-    setEditing(true);
-  };
-
-  const cancel = () => {
-    if (saving) return;
-    setEditing(false);
-  };
-
-  const save = async () => {
-    const parsed = Number(draft);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      toast.error('Enter a positive number.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave(parsed);
-      setEditing(false);
-    } catch {
-      toast.error('Update failed.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div
-      className="flex items-center justify-between gap-2 px-4 py-3"
-      style={{ borderTop: !isFirst ? '1px solid var(--border)' : undefined }}
-    >
-      <NL>{label}</NL>
-      {editing ? (
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            inputMode="decimal"
-            step="0.5"
-            min={0}
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') save();
-              if (e.key === 'Escape') cancel();
-            }}
-            className="h-11 w-24 text-right text-[16px] font-mono tabular-nums"
-            style={{ color: 'var(--fg)' }}
-            aria-label={`${label} 1RM in kilograms`}
-          />
-          <NL className="text-[9px]">kg</NL>
-          <button
-            type="button"
-            aria-label="Save"
-            onClick={save}
-            disabled={saving}
-            className="h-11 w-11 rounded-lg flex items-center justify-center disabled:opacity-50"
-            style={{ background: 'var(--fg)', color: 'var(--bg)' }}
-          >
-            {saving ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Check size={14} strokeWidth={2.5} />
-            )}
-          </button>
-          <button
-            type="button"
-            aria-label="Cancel"
-            onClick={cancel}
-            disabled={saving}
-            className="h-11 w-11 rounded-lg border flex items-center justify-center disabled:opacity-50"
-            style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
-          >
-            <X size={14} strokeWidth={1.75} />
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-baseline gap-1">
-          <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
-            {Math.round(value)}
-          </NN>
-          <NL className="text-[9px]">kg</NL>
-          <button
-            type="button"
-            aria-label={`Edit ${label}`}
-            onClick={startEdit}
-            className="ml-2 h-11 w-11 rounded-lg flex items-center justify-center transition hover:opacity-70"
-            style={{ color: 'var(--muted)' }}
-          >
-            <Pencil size={14} strokeWidth={1.75} />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
 interface ProfileScreenProps {
   profile: UserProfile | null;
   bodyWeight: number;
@@ -1214,9 +1088,7 @@ interface ProfileScreenProps {
   skin: SkinKey;
   onSkin: (s: SkinKey) => void;
   onLogout: () => void;
-  onUpdateProfile: (updates: Partial<UserProfile>) => Promise<void>;
-  onUpdateOneRepMax: (exercise: ExerciseType, value: number) => Promise<void>;
-  onOpenAccount: () => void;
+  onOpenSettings: () => void;
   avatarUrl?: string | null;
 }
 
@@ -1234,40 +1106,9 @@ const ProfileScreen = ({
   skin,
   onSkin,
   onLogout,
-  onUpdateProfile,
-  onUpdateOneRepMax,
-  onOpenAccount,
+  onOpenSettings,
   avatarUrl,
 }: ProfileScreenProps) => {
-  const [editMode, setEditMode] = useState(false);
-  const [editDisplayName, setEditDisplayName] = useState(profile?.display_name || '');
-  const [editBirthDate, setEditBirthDate] = useState(profile?.birth_date || '2000-01-01');
-  const [editHeight, setEditHeight] = useState(profile?.height || 180);
-  const [editGender, setEditGender] = useState<Gender>(profile?.gender ?? 'male');
-  const [editGoal, setEditGoal] = useState<GoalType>(profile?.goal_program ?? 'maintain');
-  const [editActivity, setEditActivity] = useState<number>(profile?.activity_level ?? 1.55);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await onUpdateProfile({
-        display_name: editDisplayName.trim() || undefined,
-        birth_date: editBirthDate,
-        height: editHeight,
-        gender: editGender,
-        goal_program: editGoal,
-        activity_level: editActivity,
-      });
-      toast.success('Profile updated');
-      setEditMode(false);
-    } catch {
-      toast.error('Update failed');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const fallbackInitial = profile?.gender === 'female' ? 'F' : 'A';
   const initial = (profile?.display_name?.[0] || fallbackInitial).toUpperCase();
   const age = calculateAge(profile?.birth_date || '');
@@ -1280,19 +1121,10 @@ const ProfileScreen = ({
           <div className="flex items-center gap-1 -mr-2">
             <button
               type="button"
-              onClick={() => setEditMode((v) => !v)}
-              className="text-[10px] font-medium uppercase tracking-[0.16em] transition hover:opacity-70 min-h-[44px] px-3"
-              style={{ color: 'var(--fg)' }}
-              aria-label={editMode ? 'Cancel editing' : 'Edit profile'}
-            >
-              {editMode ? 'Cancel' : 'Edit'}
-            </button>
-            <button
-              type="button"
-              onClick={onOpenAccount}
+              onClick={onOpenSettings}
               className="h-11 w-11 flex items-center justify-center rounded-full transition hover:opacity-70"
               style={{ color: 'var(--fg)' }}
-              aria-label="Account settings"
+              aria-label="Settings"
             >
               <SettingsIcon size={18} strokeWidth={1.75} />
             </button>
@@ -1365,13 +1197,19 @@ const ProfileScreen = ({
           style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
         >
           {ONE_RM_ROWS.map(({ label, key }, i) => (
-            <EditableOneRepMaxRow
+            <div
               key={key}
-              label={label}
-              value={oneRMs[key]}
-              isFirst={i === 0}
-              onSave={(next) => onUpdateOneRepMax(key, next)}
-            />
+              className="flex items-center justify-between px-4 py-3.5"
+              style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
+            >
+              <NL>{label}</NL>
+              <div className="flex items-baseline gap-1">
+                <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
+                  {oneRMs[key]}
+                </NN>
+                <NL className="text-[9px]">kg</NL>
+              </div>
+            </div>
           ))}
         </div>
 
@@ -1412,145 +1250,6 @@ const ProfileScreen = ({
           })}
         </div>
 
-        <div className="px-5 mb-2">
-          <NL>Settings</NL>
-        </div>
-
-        {editMode && (
-          <div
-            className="mx-5 mb-5 border rounded-2xl p-5 space-y-4"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-          >
-            <div>
-              <NL className="block mb-1.5">Name</NL>
-              <input
-                type="text"
-                value={editDisplayName}
-                onChange={(e) => setEditDisplayName(e.target.value)}
-                placeholder="Champion"
-                className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[16px] font-medium"
-                style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
-                <NL>Height</NL>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <input
-                    type="number"
-                    value={editHeight}
-                    onChange={(e) => setEditHeight(Number(e.target.value) || 0)}
-                    className="bg-transparent outline-none font-mono tabular-nums text-[20px] font-medium w-full"
-                    style={{ color: 'var(--fg)' }}
-                  />
-                  <NL className="text-[9px]">cm</NL>
-                </div>
-              </div>
-              <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
-                <NL>Sex</NL>
-                <div className="mt-2 flex gap-1">
-                  {(['male', 'female'] as const).map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setEditGender(g)}
-                      className="flex-1 min-h-[44px] rounded-lg text-[12px] font-medium transition"
-                      style={
-                        editGender === g
-                          ? { background: 'var(--fg)', color: 'var(--bg)' }
-                          : { color: 'var(--muted)', border: '1px solid var(--border)' }
-                      }
-                    >
-                      {g === 'male' ? 'Male' : 'Female'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <NL className="mb-2 block">Goal</NL>
-              <div className="grid grid-cols-3 gap-2">
-                {GOAL_BUTTONS.map((g) => (
-                  <button
-                    key={g.k}
-                    type="button"
-                    onClick={() => setEditGoal(g.k)}
-                    className="min-h-[44px] rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
-                    style={
-                      editGoal === g.k
-                        ? {
-                            background: 'var(--fg)',
-                            color: 'var(--bg)',
-                            borderColor: 'var(--fg)',
-                          }
-                        : { borderColor: 'var(--border)', color: 'var(--muted)' }
-                    }
-                  >
-                    {g.l}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <NL className="mb-2 block">Activity</NL>
-              <div className="space-y-2">
-                {ACTIVITY_OPTIONS.map((a) => {
-                  const active = Math.abs(editActivity - a.value) < 0.01;
-                  return (
-                    <button
-                      key={a.value}
-                      type="button"
-                      onClick={() => setEditActivity(a.value)}
-                      className="w-full min-h-[48px] px-4 rounded-xl border flex items-center justify-between transition"
-                      style={{ borderColor: active ? 'var(--fg)' : 'var(--border)' }}
-                    >
-                      <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>
-                        {a.label}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                          {a.sub}
-                        </NN>
-                        <span
-                          className="h-3.5 w-3.5 rounded-full border"
-                          style={
-                            active
-                              ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
-                              : { borderColor: 'var(--border)' }
-                          }
-                        />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <NL className="mb-1.5 block">Date of birth</NL>
-              <input
-                type="date"
-                value={editBirthDate}
-                onChange={(e) => setEditBirthDate(e.target.value)}
-                className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[16px] font-medium"
-                style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] disabled:opacity-50"
-              style={{ background: 'var(--fg)', color: 'var(--bg)' }}
-            >
-              {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Save'}
-            </button>
-          </div>
-        )}
-
         <div className="px-5 mb-6">
           <button
             type="button"
@@ -1580,8 +1279,6 @@ export default function App() {
     fetchProfile,
     fetchTrainingLogs,
     updatePerformance,
-    updateProfile,
-    updateOneRepMax,
     signOut,
   } = useStore();
 
@@ -1591,7 +1288,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentDay, setCurrentDay] = useState(1);
-  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [nutritionView, setNutritionView] = useState('dashboard');
 
   const [skin, setSkinState] = useState<SkinKey>(() => {
@@ -1759,6 +1456,7 @@ export default function App() {
             bottomInset={nutritionView === 'dashboard' ? BOTTOM_NAV_INSET_PX : 0}
             onBack={() => setCurrentView('home')}
             onViewChange={setNutritionView}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         );
       case 'progress':
@@ -1779,9 +1477,7 @@ export default function App() {
             skin={skin}
             onSkin={setSkinState}
             onLogout={handleLogout}
-            onUpdateProfile={updateProfile}
-            onUpdateOneRepMax={updateOneRepMax}
-            onOpenAccount={() => setAccountDialogOpen(true)}
+            onOpenSettings={() => setSettingsOpen(true)}
             avatarUrl={avatarUrl}
           />
         );
@@ -1815,7 +1511,7 @@ export default function App() {
         )}
       </div>
 
-      <AccountSettingsDialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen} />
+      <ProfileSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }

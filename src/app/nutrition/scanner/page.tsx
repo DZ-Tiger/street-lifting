@@ -26,14 +26,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { NutritionResponse } from '@/app/api/nutrition/scan/route';
 import { useNutritionStore, HistoryItem } from '@/store/useNutritionStore';
-import {
-  calculateTargets,
-  Gender,
-  GoalType,
-  GOAL_LABELS,
-  ACTIVITY_OPTIONS,
-  caloriesFromMacros,
-} from '@/lib/nutrition';
+import { calculateTargets, GoalType, GOAL_LABELS, caloriesFromMacros } from '@/lib/nutrition';
 import { useStore } from '@/store/useStore';
 import { calculateAge, compressImage, useIsHydrated } from '@/lib/utils';
 
@@ -50,12 +43,6 @@ const PORTIONS = [
   { label: '2×', value: 2 },
 ];
 
-/**
- * All values are CSS variable references — they automatically follow the active skin
- * (mono / carbon / sand) defined in `useSkin.ts`. Use these inside `style={{ ... }}`
- * props. For SVG `stroke` / `fill` ATTRIBUTES (not style), use inline style instead
- * so `var()` resolves correctly.
- */
 const PALETTE = {
   bg: 'var(--bg)',
   surface: 'var(--surface)',
@@ -935,200 +922,6 @@ const ResultView = ({
   );
 };
 
-/* ─────────────────────── Settings Sheet ─────────────────────── */
-
-interface NutritionProfileSnapshot {
-  height: number;
-  age: number;
-  gender: Gender;
-  activityLevel: number;
-  goal: GoalType;
-}
-
-const SettingsSheet = ({
-  open,
-  onClose,
-  bodyWeight,
-  nutritionProfile,
-  onSave,
-  isSaving,
-}: {
-  open: boolean;
-  onClose: () => void;
-  bodyWeight: number;
-  nutritionProfile: NutritionProfileSnapshot;
-  onSave: (data: {
-    weight: number;
-    height: number;
-    age: number;
-    gender: Gender;
-    activity: number;
-    goal: GoalType;
-  }) => void;
-  isSaving: boolean;
-}) => {
-  const [weight, setWeight] = useState(bodyWeight);
-  const [height, setHeight] = useState(nutritionProfile.height);
-  const [age, setAge] = useState(nutritionProfile.age);
-  const [gender, setGender] = useState<Gender>(nutritionProfile.gender);
-  const [activity, setActivity] = useState(nutritionProfile.activityLevel);
-  const [goal, setGoal] = useState<GoalType>(nutritionProfile.goal);
-
-  if (!open) return null;
-
-  return (
-    <div className="absolute inset-0 z-50 flex items-end">
-      <div role="presentation" className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div
-        className="relative w-full rounded-t-[28px] border-t max-h-[88%] overflow-y-auto"
-        style={{ background: PALETTE.bg, borderColor: PALETTE.border }}
-      >
-        <div className="px-5 pt-3 pb-2 flex justify-center">
-          <div className="h-1 w-9 rounded-full" style={{ background: PALETTE.border }} />
-        </div>
-        <div className="px-5 pb-2 pt-1 flex items-center justify-between">
-          <div className="text-[16px] font-medium" style={{ color: PALETTE.fg }}>
-            Settings
-          </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="h-11 w-11 rounded-full flex items-center justify-center hover:opacity-70"
-            style={{ color: PALETTE.fg }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-        <HDivider />
-
-        <div className="px-5 py-5 space-y-6">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { l: 'Weight', val: weight, set: setWeight, u: 'kg' },
-              { l: 'Height', val: height, set: setHeight, u: 'cm' },
-              { l: 'Age', val: age, set: setAge, u: 'yrs' },
-            ].map((f) => (
-              <div
-                key={f.l}
-                className="border rounded-xl p-3"
-                style={{ borderColor: PALETTE.border }}
-              >
-                <NL>{f.l}</NL>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <input
-                    type="number"
-                    value={f.val}
-                    onChange={(e) => f.set(Number(e.target.value) || 0)}
-                    className="bg-transparent outline-none font-mono tabular-nums text-[20px] font-medium w-full"
-                    style={{ color: PALETTE.fg }}
-                  />
-                  <NL className="text-[9px]">{f.u}</NL>
-                </div>
-              </div>
-            ))}
-            <div className="border rounded-xl p-3" style={{ borderColor: PALETTE.border }}>
-              <NL>Sex</NL>
-              <div className="mt-2 flex gap-1">
-                {(['male', 'female'] as Gender[]).map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setGender(g)}
-                    className="flex-1 min-h-[44px] rounded-lg text-[12px] font-medium transition"
-                    style={
-                      gender === g
-                        ? { background: PALETTE.fg, color: PALETTE.bg }
-                        : { color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }
-                    }
-                  >
-                    {g === 'male' ? 'Male' : 'Female'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <NL className="mb-2 block">Goal</NL>
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  { k: 'cut' as GoalType, l: 'Cut' },
-                  { k: 'maintain' as GoalType, l: 'Maintain' },
-                  { k: 'bulk' as GoalType, l: 'Bulk' },
-                ] as const
-              ).map((g) => (
-                <button
-                  key={g.k}
-                  type="button"
-                  onClick={() => setGoal(g.k)}
-                  className="min-h-[44px] rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
-                  style={
-                    goal === g.k
-                      ? { background: PALETTE.fg, color: PALETTE.bg, borderColor: PALETTE.fg }
-                      : { borderColor: PALETTE.border, color: PALETTE.muted }
-                  }
-                >
-                  {g.l}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <NL className="mb-2 block">Activity</NL>
-            <div className="space-y-2">
-              {ACTIVITY_OPTIONS.map((a) => {
-                const active = Math.abs(activity - a.value) < 0.01;
-                return (
-                  <button
-                    key={a.value}
-                    type="button"
-                    onClick={() => setActivity(a.value)}
-                    className="w-full min-h-[48px] px-4 rounded-xl border flex items-center justify-between transition"
-                    style={{ borderColor: active ? PALETTE.fg : PALETTE.border }}
-                  >
-                    <span className="text-[13px] font-medium" style={{ color: PALETTE.fg }}>
-                      {a.label}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <NN
-                        className="text-[10px]"
-                        style={{ color: PALETTE.muted } as React.CSSProperties}
-                      >
-                        {a.sub}
-                      </NN>
-                      <span
-                        className="h-3.5 w-3.5 rounded-full border"
-                        style={
-                          active
-                            ? { background: PALETTE.fg, borderColor: PALETTE.fg }
-                            : { borderColor: PALETTE.border }
-                        }
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onSave({ weight, height, age, gender, activity, goal })}
-            disabled={isSaving}
-            className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] disabled:opacity-50 transition"
-            style={{ background: PALETTE.fg, color: PALETTE.bg }}
-          >
-            {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Save'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 /* ─────────────────────── Manual Entry Sheet ─────────────────────── */
 
 const ManualSheet = ({
@@ -1361,7 +1154,6 @@ const BarcodeReaderView = ({
     let stream: MediaStream | null = null;
     let stopReader: (() => void) | null = null;
 
-    // Suppress internal ZXing warning spam
     const originalWarn = console.warn;
     console.warn = (...args) => {
       if (typeof args[0] === 'string' && args[0].includes('non-ReaderException')) return;
@@ -1411,7 +1203,7 @@ const BarcodeReaderView = ({
                 err.name === 'ChecksumException' ||
                 err.name === 'FormatException'
               ) {
-                // Expected background scanning noise, do nothing
+                // Noise
               } else {
                 console.error(err);
               }
@@ -1520,6 +1312,8 @@ export interface NutritionScreenProps {
   hideBackButton?: boolean;
   /** Notifies the parent whenever the internal view changes (useful for hiding BottomNav). */
   onViewChange?: (view: string) => void;
+  /** Callback to open global settings. */
+  onOpenSettings?: () => void;
 }
 
 export function NutritionScreen({
@@ -1527,6 +1321,7 @@ export function NutritionScreen({
   bottomInset = 0,
   hideBackButton = false,
   onViewChange,
+  onOpenSettings,
 }: NutritionScreenProps = {}) {
   useSkin();
   const router = useRouter();
@@ -1535,19 +1330,8 @@ export function NutritionScreen({
 
   const handleBack = onBack ?? (() => router.back());
 
-  const { profile: appProfile, updateBodyweight, updateProfile } = useStore();
+  const { profile: appProfile } = useStore();
   const bodyWeight = appProfile?.body_weight || 80;
-
-  const nutritionProfile = useMemo<NutritionProfileSnapshot>(
-    () => ({
-      height: appProfile?.height ?? 180,
-      age: calculateAge(appProfile?.birth_date ?? ''),
-      gender: appProfile?.gender ?? 'male',
-      activityLevel: appProfile?.activity_level ?? 1.55,
-      goal: appProfile?.goal_program ?? 'maintain',
-    }),
-    [appProfile]
-  );
 
   const { meals, addMeal, removeMeal, updateMealPortion, updateMealMacros, fetchMeals } =
     useNutritionStore();
@@ -1564,7 +1348,6 @@ export function NutritionScreen({
   const [image, setImage] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<NutritionResponse | null>(null);
   const [selectedMeal, setSelectedMeal] = useState<HistoryItem | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [scanMode, setScanMode] = useState<ScanMode>('ai');
@@ -1600,14 +1383,14 @@ export function NutritionScreen({
   const targets = useMemo(
     () =>
       calculateTargets(
-        nutritionProfile.height,
-        nutritionProfile.age,
-        nutritionProfile.gender,
-        nutritionProfile.activityLevel,
-        nutritionProfile.goal,
+        appProfile?.height ?? 180,
+        calculateAge(appProfile?.birth_date ?? ''),
+        appProfile?.gender ?? 'male',
+        appProfile?.activity_level ?? 1.55,
+        appProfile?.goal_program ?? 'maintain',
         bodyWeight
       ),
-    [nutritionProfile, bodyWeight]
+    [appProfile, bodyWeight]
   );
 
   const totals = useMemo(
@@ -1715,33 +1498,6 @@ export function NutritionScreen({
     }
   };
 
-  const handleSaveSettings = async (data: {
-    weight: number;
-    height: number;
-    age: number;
-    gender: Gender;
-    activity: number;
-    goal: GoalType;
-  }) => {
-    setIsSaving(true);
-    try {
-      if (data.weight !== bodyWeight) await updateBodyweight(data.weight);
-      await updateProfile({
-        height: data.height,
-        gender: data.gender,
-        activity_level: data.activity,
-        goal_program: data.goal,
-      });
-      toast.success('Settings updated.');
-      setSettingsOpen(false);
-    } catch (error) {
-      console.error('Settings save failed', error);
-      toast.error('Update failed.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleManualSave = async (data: {
     name: string;
     calories: number;
@@ -1835,7 +1591,7 @@ export function NutritionScreen({
         <button
           type="button"
           aria-label="Open settings"
-          onClick={() => setSettingsOpen(true)}
+          onClick={onOpenSettings}
           className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full transition hover:opacity-70 active:scale-95"
           style={{ color: PALETTE.fg }}
         >
@@ -1868,7 +1624,11 @@ export function NutritionScreen({
               className="h-1.5 w-1.5 rounded-full animate-pulse"
               style={{ background: PALETTE.fg }}
             />
-            <NL className="text-[9px] tracking-[0.2em]">{GOAL_LABELS[nutritionProfile.goal]}</NL>
+            <NL className="text-[9px] tracking-[0.2em]">
+              {appProfile?.goal_program
+                ? GOAL_LABELS[appProfile.goal_program as GoalType]
+                : 'Maintain'}
+            </NL>
           </div>
         </div>
 
@@ -1992,10 +1752,8 @@ export function NutritionScreen({
 
   const renderScanner = () => (
     <div className="absolute inset-0 overflow-hidden" style={{ background: PALETTE.carbon }}>
-      {/* Full-bleed camera background */}
       <BarcodeReaderView onDetected={handleBarcodeDetected} isActive={scanMode === 'barcode'} />
 
-      {/* Top Bar Overlay */}
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-5 pt-3 pb-4 z-10 bg-gradient-to-b from-black/50 to-transparent">
         <button
           type="button"
@@ -2011,7 +1769,6 @@ export function NutritionScreen({
         <div className="h-11 w-11 -mr-2" />
       </div>
 
-      {/* Viewfinder Overlays */}
       <div
         className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10"
         style={{ paddingTop: '60px', paddingBottom: '160px' }}
@@ -2050,7 +1807,6 @@ export function NutritionScreen({
         </div>
       </div>
 
-      {/* Bottom Controls Overlay */}
       <div
         className="absolute bottom-0 left-0 right-0 px-6 pt-12 pb-10 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
         style={{ paddingBottom: 'calc(var(--safe-bottom) + 2.5rem)' }}
@@ -2176,19 +1932,6 @@ export function NutritionScreen({
           />
         )}
 
-        <SettingsSheet
-          key={
-            settingsOpen
-              ? `${bodyWeight}-${nutritionProfile.height}-${nutritionProfile.age}-${nutritionProfile.gender}-${nutritionProfile.activityLevel}-${nutritionProfile.goal}`
-              : 'settings-closed'
-          }
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          bodyWeight={bodyWeight}
-          nutritionProfile={nutritionProfile}
-          onSave={handleSaveSettings}
-          isSaving={isSaving}
-        />
         <ManualSheet
           open={manualOpen}
           onClose={() => setManualOpen(false)}
@@ -2200,11 +1943,6 @@ export function NutritionScreen({
   );
 }
 
-/**
- * Route entry point. Renders the same screen as the inline `<NutritionScreen />`
- * used by the main app tab, but falls back to `router.back()` for the close button
- * and provides its own viewport sizing.
- */
 export default function NutritionRoutePage() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>

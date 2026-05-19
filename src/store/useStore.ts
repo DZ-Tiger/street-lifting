@@ -174,7 +174,17 @@ export const useStore = create<SupabaseState>((set, get) => ({
 
     const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
     const avatar = typeof meta.avatar_url === 'string' ? meta.avatar_url : null;
-    const fullName = typeof meta.full_name === 'string' ? meta.full_name : undefined;
+    const displayName =
+      typeof meta.display_name === 'string'
+        ? meta.display_name
+        : typeof meta.full_name === 'string'
+          ? meta.full_name
+          : typeof meta.given_name === 'string'
+            ? meta.given_name
+            : typeof meta.name === 'string'
+              ? meta.name
+              : undefined;
+
     set({ avatarUrl: avatar });
 
     let raw: RawProfile | null = null;
@@ -193,9 +203,12 @@ export const useStore = create<SupabaseState>((set, get) => ({
 
     if (raw) {
       // If profile exists but display_name is missing and we have one from OAuth, sync it
-      if (!raw.display_name && fullName) {
-        await supabase.from('profiles').update({ display_name: fullName }).eq('user_id', user.id);
-        raw.display_name = fullName;
+      if (!raw.display_name && displayName) {
+        await supabase
+          .from('profiles')
+          .update({ display_name: displayName })
+          .eq('user_id', user.id);
+        raw.display_name = displayName;
       }
       set({ profile: normalizeProfile(raw), loading: false });
       return;
@@ -204,7 +217,7 @@ export const useStore = create<SupabaseState>((set, get) => ({
     const seedProfile: RawProfile = {
       user_id: user.id,
       ...DEFAULT_PROFILE_VALUES,
-      display_name: fullName,
+      display_name: displayName,
     };
 
     const { data: inserted, error: insertError } = await supabase
@@ -391,11 +404,13 @@ export const useStore = create<SupabaseState>((set, get) => ({
     return {
       email: user.email ?? null,
       name:
-        typeof metadata.full_name === 'string'
-          ? metadata.full_name
-          : typeof metadata.name === 'string'
-            ? metadata.name
-            : '',
+        typeof metadata.display_name === 'string'
+          ? metadata.display_name
+          : typeof metadata.full_name === 'string'
+            ? metadata.full_name
+            : typeof metadata.name === 'string'
+              ? metadata.name
+              : '',
       avatarUrl: typeof metadata.avatar_url === 'string' ? metadata.avatar_url : null,
       isOAuth: providers.length > 0 && !providers.includes('email'),
     };
@@ -409,7 +424,10 @@ export const useStore = create<SupabaseState>((set, get) => ({
     } = {};
     const metadataPatch: Record<string, string | null> = {};
 
-    if (typeof name === 'string') metadataPatch.name = name;
+    if (typeof name === 'string') {
+      metadataPatch.display_name = name;
+      metadataPatch.name = name; // Maintain for compatibility
+    }
     if (avatarUrl !== undefined) metadataPatch.avatar_url = avatarUrl;
     if (Object.keys(metadataPatch).length > 0) payload.data = metadataPatch;
     if (email) payload.email = email;
@@ -421,6 +439,14 @@ export const useStore = create<SupabaseState>((set, get) => ({
     if (error) {
       console.error('Error updating account:', error);
       throw error;
+    }
+
+    // Sync with local profile state if name changed
+    if (typeof name === 'string') {
+      const { profile } = get();
+      if (profile) {
+        set({ profile: { ...profile, display_name: name } });
+      }
     }
 
     if ('avatar_url' in metadataPatch) {
