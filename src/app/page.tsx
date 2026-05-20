@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, ReactNode } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, ReactNode } from 'react';
 import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -566,22 +566,22 @@ const WorkoutScreen = ({
 
   const exercise = template.exercises[exIdx];
 
-  const handleValidate = async () => {
+  const handleValidate = useCallback(async () => {
     await onValidate(lestInput, repsInput);
     setIsDone(true);
     setHistory((h) => [...h, { set: h.length + 1, reps: repsInput, load: lestInput }]);
     setRest(0);
     setRunning(true);
-  };
+  }, [onValidate, lestInput, repsInput]);
 
-  // Register the "Log set" action with the shell's fixed slot. Re-registers
-  // when the closure inputs change so the shell button always runs current
-  // values; clears on unmount (leaving the Workout tab).
+  // Register/update the "Log set" action with the shell's fixed slot.
   useEffect(() => {
     onRegisterAction?.({ run: handleValidate, disabled: isDone || loading, loading });
+  }, [onRegisterAction, handleValidate, isDone, loading]);
+
+  useEffect(() => {
     return () => onRegisterAction?.(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onRegisterAction, isDone, loading, lestInput, repsInput]);
+  }, [onRegisterAction]);
 
   return (
     <>
