@@ -1304,10 +1304,11 @@ export interface NutritionScreenProps {
   /** Called when the user taps the dashboard back button. Defaults to router.back(). */
   onBack?: () => void;
   /**
-   * Extra pixels of space the screen should leave at the bottom (e.g. when rendered
-   * inside the main app behind a BottomNav). Default: 0.
+   * CSS value for how far the dashboard FABs sit above the screen bottom.
+   * Defaults to `env(safe-area-inset-bottom, 0px)` for standalone usage; pass
+   * `calc(76px + env(safe-area-inset-bottom, 0px))` when embedded behind a BottomNav.
    */
-  bottomInset?: number;
+  bottomInset?: string;
   /** Hides the dashboard back button entirely (use when navigation is handled outside). */
   hideBackButton?: boolean;
   /** Notifies the parent whenever the internal view changes (useful for hiding BottomNav). */
@@ -1316,7 +1317,7 @@ export interface NutritionScreenProps {
 
 export function NutritionScreen({
   onBack,
-  bottomInset = 0,
+  bottomInset = 'env(safe-area-inset-bottom, 0px)',
   hideBackButton = false,
   onViewChange,
 }: NutritionScreenProps = {}) {
@@ -1564,11 +1565,9 @@ export function NutritionScreen({
   if (!isHydrated) return null;
 
   const renderDashboard = () => (
-    <div className="flex flex-col h-full" style={{ background: PALETTE.bg }}>
-      <div className="flex items-center justify-between px-5 pt-3 pb-4">
-        {hideBackButton ? (
-          <div className="h-11 w-11" />
-        ) : (
+    <div className="absolute inset-0 flex flex-col" style={{ background: PALETTE.bg }}>
+      {!hideBackButton && (
+        <div className="flex items-center px-5 pt-3 pb-4">
           <button
             type="button"
             aria-label="Back"
@@ -1578,17 +1577,13 @@ export function NutritionScreen({
           >
             <ChevronLeft size={22} strokeWidth={1.75} />
           </button>
-        )}
-        <div
-          className="text-[11px] font-medium uppercase tracking-[0.28em]"
-          style={{ color: PALETTE.fg }}
-        >
-          Nutrition
         </div>
-        <div className="h-11 w-11" />
-      </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: `${bottomInset + 160}px` }}>
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{ paddingBottom: `calc(${bottomInset} + 160px)` }}
+      >
         <div className="px-5 mb-4 flex items-center justify-between">
           <div>
             <div className="text-[20px] font-medium leading-tight" style={{ color: PALETTE.fg }}>
@@ -1711,9 +1706,9 @@ export function NutritionScreen({
       <div
         className="absolute left-0 right-0 px-5 pt-10 pointer-events-none"
         style={{
-          bottom: `${bottomInset}px`,
+          bottom: bottomInset,
           background: `linear-gradient(to top, ${PALETTE.bg} 60%, transparent)`,
-          paddingBottom: 'calc(var(--safe-bottom) + 1.5rem)',
+          paddingBottom: '1.5rem',
         }}
       >
         <div className="pointer-events-auto flex gap-2.5">

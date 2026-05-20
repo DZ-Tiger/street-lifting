@@ -261,7 +261,10 @@ const LoginScreen = ({
     >
       <AuthBackdrop />
 
-      <div className="relative flex items-center justify-between px-5 pt-5 pb-4">
+      <div
+        className="relative flex items-center justify-between px-5 pb-4"
+        style={{ paddingTop: 'calc(var(--safe-top) + 1.25rem)' }}
+      >
         <Wordmark />
         <button
           type="button"
@@ -335,7 +338,10 @@ const LoginScreen = ({
           </div>
         </div>
 
-        <div className="px-5 pb-10 pt-10 text-center">
+        <div
+          className="px-5 pt-10 text-center"
+          style={{ paddingBottom: 'calc(var(--safe-bottom) + 2.5rem)' }}
+        >
           <AL className="text-[9px] tracking-[0.22em]">v 2.4 · terms · privacy</AL>
         </div>
       </div>
@@ -378,7 +384,10 @@ const SignupScreen = ({
     >
       <AuthBackdrop />
 
-      <div className="relative flex items-center justify-between px-5 pt-5 pb-4">
+      <div
+        className="relative flex items-center justify-between px-5 pb-4"
+        style={{ paddingTop: 'calc(var(--safe-top) + 1.25rem)' }}
+      >
         <button
           type="button"
           aria-label="Back"
@@ -438,7 +447,7 @@ const SignupScreen = ({
           </div>
         </div>
 
-        <div className="px-5 mt-7 pb-6">
+        <div className="px-5 mt-7" style={{ paddingBottom: 'calc(var(--safe-bottom) + 1.5rem)' }}>
           <CTA onClick={handleSubmit} loading={loading}>
             Create account
           </CTA>
