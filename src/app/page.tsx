@@ -273,7 +273,7 @@ const NAV_ITEMS: {
 ];
 
 const BottomNav = ({ active, onNav }: { active: AppView; onNav: (v: AppView) => void }) => (
-  <div className="h-20 flex items-stretch px-1.5">
+  <div className="h-[60px] flex items-stretch px-1.5">
     {NAV_ITEMS.map(({ k, label, Icon }) => {
       const isActive = active === k;
       return (
@@ -281,23 +281,17 @@ const BottomNav = ({ active, onNav }: { active: AppView; onNav: (v: AppView) => 
           key={k}
           type="button"
           onClick={() => onNav(k)}
-          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl transition min-h-[44px]"
+          className="flex-1 flex items-center justify-center rounded-full transition"
           aria-label={label}
         >
           <div
-            className="h-7 w-7 rounded-lg flex items-center justify-center transition"
+            className="h-9 w-9 rounded-full flex items-center justify-center transition"
             style={
               isActive ? { background: 'var(--fg)', color: 'var(--bg)' } : { color: 'var(--muted)' }
             }
           >
-            <Icon size={15} strokeWidth={1.75} />
+            <Icon size={17} strokeWidth={1.75} />
           </div>
-          <span
-            className="text-[8.5px] uppercase tracking-[0.16em] font-medium"
-            style={{ color: isActive ? 'var(--fg)' : 'var(--muted)' }}
-          >
-            {label}
-          </span>
         </button>
       );
     })}
@@ -442,14 +436,20 @@ const HomeScreen = ({
           className="border rounded-2xl p-4 flex items-center gap-4"
           style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
         >
-          <SmallRing pct={nutritionTarget > 0 ? nutritionTotals.calories / nutritionTarget : 0} />
+          <SmallRing
+            pct={
+              nutritionTargets.targetCalories > 0
+                ? nutritionTotals.calories / nutritionTargets.targetCalories
+                : 0
+            }
+          />
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-1.5">
               <NN className="text-[22px] font-medium leading-none" style={{ color: 'var(--fg)' }}>
                 {nutritionTotals.calories.toLocaleString('en-US')}
               </NN>
               <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                / {nutritionTarget.toLocaleString('en-US')} kcal
+                / {nutritionTargets.targetCalories.toLocaleString('en-US')} kcal
               </NN>
             </div>
             <NN className="block mt-1 text-[10px]" style={{ color: 'var(--muted)' }}>
@@ -1000,11 +1000,7 @@ interface ProfileScreenProps {
   skin: SkinKey;
   onSkin: (s: SkinKey) => void;
   onLogout: () => void;
-  onUpdateProfile: (updates: Partial<UserProfile>) => Promise<void>;
-  onUpdateOneRepMax: (exercise: ExerciseType, value: number) => Promise<void>;
   avatarUrl?: string | null;
-  editMode: boolean;
-  onExitEdit: () => void;
 }
 
 const ONE_RM_ROWS: { label: string; key: ExerciseType }[] = [
@@ -1021,40 +1017,8 @@ const ProfileScreen = ({
   skin,
   onSkin,
   onLogout,
-  onUpdateProfile,
-  onUpdateOneRepMax,
   avatarUrl,
-  editMode,
-  onExitEdit,
 }: ProfileScreenProps) => {
-  const [editDisplayName, setEditDisplayName] = useState(profile?.display_name || '');
-  const [editBirthDate, setEditBirthDate] = useState(profile?.birth_date || '2000-01-01');
-  const [editHeight, setEditHeight] = useState(profile?.height || 180);
-  const [editGender, setEditGender] = useState<Gender>(profile?.gender ?? 'male');
-  const [editGoal, setEditGoal] = useState<GoalType>(profile?.goal_program ?? 'maintain');
-  const [editActivity, setEditActivity] = useState<number>(profile?.activity_level ?? 1.55);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await onUpdateProfile({
-        display_name: editDisplayName.trim() || undefined,
-        birth_date: editBirthDate,
-        height: editHeight,
-        gender: editGender,
-        goal_program: editGoal,
-        activity_level: editActivity,
-      });
-      toast.success('Profile updated');
-      onExitEdit();
-    } catch {
-      toast.error('Update failed');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const fallbackInitial = profile?.gender === 'female' ? 'F' : 'A';
   const initial = (profile?.display_name?.[0] || fallbackInitial).toUpperCase();
   const age = calculateAge(profile?.birth_date || '');
@@ -1126,13 +1090,19 @@ const ProfileScreen = ({
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         {ONE_RM_ROWS.map(({ label, key }, i) => (
-          <EditableOneRepMaxRow
+          <div
             key={key}
-            label={label}
-            value={oneRMs[key]}
-            isFirst={i === 0}
-            onSave={(next) => onUpdateOneRepMax(key, next)}
-          />
+            className="flex items-center justify-between px-4 py-3.5"
+            style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
+          >
+            <NL>{label}</NL>
+            <div className="flex items-baseline gap-1">
+              <NN className="text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
+                {Math.round(oneRMs[key])}
+              </NN>
+              <NL className="text-[9px]">kg</NL>
+            </div>
+          </div>
         ))}
       </div>
 
@@ -1172,145 +1142,6 @@ const ProfileScreen = ({
           );
         })}
       </div>
-
-      <div className="px-5 mb-2">
-        <NL>Settings</NL>
-      </div>
-
-      {editMode && (
-        <div
-          className="mx-5 mb-5 border rounded-2xl p-5 space-y-4"
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-        >
-          <div>
-            <NL className="block mb-1.5">Name</NL>
-            <input
-              type="text"
-              value={editDisplayName}
-              onChange={(e) => setEditDisplayName(e.target.value)}
-              placeholder="Champion"
-              className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[16px] font-medium"
-              style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
-              <NL>Height</NL>
-              <div className="mt-1 flex items-baseline gap-1">
-                <input
-                  type="number"
-                  value={editHeight}
-                  onChange={(e) => setEditHeight(Number(e.target.value) || 0)}
-                  className="bg-transparent outline-none font-mono tabular-nums text-[20px] font-medium w-full"
-                  style={{ color: 'var(--fg)' }}
-                />
-                <NL className="text-[9px]">cm</NL>
-              </div>
-            </div>
-            <div className="border rounded-xl p-3" style={{ borderColor: 'var(--border)' }}>
-              <NL>Sex</NL>
-              <div className="mt-2 flex gap-1">
-                {(['male', 'female'] as const).map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setEditGender(g)}
-                    className="flex-1 min-h-[44px] rounded-lg text-[12px] font-medium transition"
-                    style={
-                      editGender === g
-                        ? { background: 'var(--fg)', color: 'var(--bg)' }
-                        : { color: 'var(--muted)', border: '1px solid var(--border)' }
-                    }
-                  >
-                    {g === 'male' ? 'Male' : 'Female'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <NL className="mb-2 block">Goal</NL>
-            <div className="grid grid-cols-3 gap-2">
-              {GOAL_BUTTONS.map((g) => (
-                <button
-                  key={g.k}
-                  type="button"
-                  onClick={() => setEditGoal(g.k)}
-                  className="min-h-[44px] rounded-xl border text-[11px] font-medium uppercase tracking-[0.18em] transition"
-                  style={
-                    editGoal === g.k
-                      ? {
-                          background: 'var(--fg)',
-                          color: 'var(--bg)',
-                          borderColor: 'var(--fg)',
-                        }
-                      : { borderColor: 'var(--border)', color: 'var(--muted)' }
-                  }
-                >
-                  {g.l}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <NL className="mb-2 block">Activity</NL>
-            <div className="space-y-2">
-              {ACTIVITY_OPTIONS.map((a) => {
-                const active = Math.abs(editActivity - a.value) < 0.01;
-                return (
-                  <button
-                    key={a.value}
-                    type="button"
-                    onClick={() => setEditActivity(a.value)}
-                    className="w-full min-h-[48px] px-4 rounded-xl border flex items-center justify-between transition"
-                    style={{ borderColor: active ? 'var(--fg)' : 'var(--border)' }}
-                  >
-                    <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>
-                      {a.label}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <NN className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                        {a.sub}
-                      </NN>
-                      <span
-                        className="h-3.5 w-3.5 rounded-full border"
-                        style={
-                          active
-                            ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
-                            : { borderColor: 'var(--border)' }
-                        }
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <NL className="mb-1.5 block">Date of birth</NL>
-            <input
-              type="date"
-              value={editBirthDate}
-              onChange={(e) => setEditBirthDate(e.target.value)}
-              className="w-full h-12 px-3 rounded-xl border bg-transparent outline-none text-[16px] font-medium"
-              style={{ borderColor: 'var(--border)', color: 'var(--fg)' }}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="w-full h-12 rounded-2xl text-[12px] font-medium uppercase tracking-[0.22em] disabled:opacity-50"
-            style={{ background: 'var(--fg)', color: 'var(--bg)' }}
-          >
-            {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Save'}
-          </button>
-        </div>
-      )}
 
       <div className="px-5 mb-6">
         <button
@@ -1358,8 +1189,6 @@ export default function App() {
     disabled: boolean;
     loading: boolean;
   } | null>(null);
-  // Profile edit mode is hoisted so the shared header can drive it.
-  const [profileEditMode, setProfileEditMode] = useState(false);
 
   const [skin, setSkinState] = useState<SkinKey>(() => {
     if (typeof window === 'undefined') return 'mono';
@@ -1420,18 +1249,21 @@ export default function App() {
     [currentWeek, currentDay, oneRMs, bodyWeight]
   );
 
-  const handleValidateMain = async (lest: number, reps: number) => {
-    await updatePerformance(
-      template.mainExercise,
-      bodyWeight,
-      lest,
-      reps,
-      8,
-      [],
-      currentWeek,
-      currentDay
-    );
-  };
+  const handleValidateMain = useCallback(
+    async (lest: number, reps: number) => {
+      await updatePerformance(
+        template.mainExercise,
+        bodyWeight,
+        lest,
+        reps,
+        8,
+        [],
+        currentWeek,
+        currentDay
+      );
+    },
+    [updatePerformance, template, bodyWeight, currentWeek, currentDay]
+  );
 
   const nutritionTargets = useMemo(
     () =>
@@ -1531,6 +1363,8 @@ export default function App() {
             </div>
           ),
         };
+      case 'nutrition':
+        return { title: 'Nutrition' };
       case 'progress':
         return { title: 'Progress' };
       case 'profile':
@@ -1540,19 +1374,10 @@ export default function App() {
             <div className="flex items-center gap-1 -mr-2">
               <button
                 type="button"
-                onClick={() => setProfileEditMode((v) => !v)}
-                className="text-[10px] font-medium uppercase tracking-[0.16em] transition hover:opacity-70 min-h-[44px] px-3"
-                style={{ color: 'var(--fg)' }}
-                aria-label={profileEditMode ? 'Cancel editing' : 'Edit profile'}
-              >
-                {profileEditMode ? 'Cancel' : 'Edit'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setAccountDialogOpen(true)}
+                onClick={() => setSettingsOpen(true)}
                 className="h-11 w-11 flex items-center justify-center rounded-full transition hover:opacity-70"
                 style={{ color: 'var(--fg)' }}
-                aria-label="Account settings"
+                aria-label="Profile settings"
               >
                 <SettingsIcon size={18} strokeWidth={1.75} />
               </button>
@@ -1597,10 +1422,9 @@ export default function App() {
         return (
           <NutritionScreen
             hideBackButton
-            bottomInset="calc(5rem + env(safe-area-inset-bottom))"
+            bottomInset="calc(env(safe-area-inset-bottom) + 88px)"
             onBack={() => setCurrentView('home')}
             onViewChange={setNutritionView}
-            onOpenSettings={() => setSettingsOpen(true)}
           />
         );
       case 'progress':
@@ -1621,11 +1445,7 @@ export default function App() {
             skin={skin}
             onSkin={setSkinState}
             onLogout={handleLogout}
-            onUpdateProfile={updateProfile}
-            onUpdateOneRepMax={updateOneRepMax}
             avatarUrl={avatarUrl}
-            editMode={profileEditMode}
-            onExitEdit={() => setProfileEditMode(false)}
           />
         );
     }
@@ -1633,7 +1453,8 @@ export default function App() {
 
   const isNutrition = currentView === 'nutrition';
   const header = headerForView();
-  const showNav = currentView !== 'nutrition' || nutritionView === 'dashboard';
+  const showHeader = !isNutrition || nutritionView === 'dashboard';
+  const showNav = !isNutrition || nutritionView === 'dashboard';
 
   return (
     <>
@@ -1644,7 +1465,7 @@ export default function App() {
           fontFamily: 'var(--font-geist, ui-sans-serif, system-ui, sans-serif)',
         }}
       >
-        {!isNutrition && (
+        {showHeader && (
           <header
             className="flex-none pt-[env(safe-area-inset-top)] z-50"
             style={{ background: 'var(--bg)' }}
@@ -1653,71 +1474,62 @@ export default function App() {
           </header>
         )}
 
-        <main className="flex-1 overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] relative">
-          {isNutrition ? (
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key="nutrition"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="absolute inset-0"
-              >
-                {renderView()}
-              </motion.div>
-            </AnimatePresence>
-          ) : (
-            <>
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                  key={currentView}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
-                >
-                  <div className="p-4">{renderView()}</div>
-                </motion.div>
-              </AnimatePresence>
+        <main
+          className="flex-1 overflow-y-auto relative"
+          style={{
+            paddingBottom: `calc(env(safe-area-inset-bottom) + ${
+              currentView === 'workout' ? 180 : 88
+            }px)`,
+          }}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={currentView}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className={isNutrition ? 'absolute inset-0' : ''}
+            >
+              {isNutrition ? renderView() : <div className="p-4">{renderView()}</div>}
+            </motion.div>
+          </AnimatePresence>
 
-              {currentView === 'workout' && workoutAction && (
-                <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-0 w-full px-4 pb-4 z-40">
-                  <button
-                    type="button"
-                    onClick={workoutAction.run}
-                    disabled={workoutAction.disabled}
-                    className="w-full h-20 rounded-2xl flex items-center justify-center gap-3 active:scale-[0.99] transition disabled:opacity-50"
-                    style={{ background: 'var(--fg)', color: 'var(--bg)' }}
-                  >
-                    {workoutAction.loading ? (
-                      <Loader2 size={22} className="animate-spin" />
-                    ) : (
-                      <>
-                        <Check size={22} strokeWidth={2.5} />
-                        <span className="text-[14px] font-medium uppercase tracking-[0.22em]">
-                          Log set
-                        </span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </>
+          {currentView === 'workout' && workoutAction && (
+            <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+84px)] left-0 w-full px-4 z-40">
+              <button
+                type="button"
+                onClick={workoutAction.run}
+                disabled={workoutAction.disabled}
+                className="w-full h-20 rounded-2xl flex items-center justify-center gap-3 active:scale-[0.99] transition disabled:opacity-50"
+                style={{ background: 'var(--fg)', color: 'var(--bg)' }}
+              >
+                {workoutAction.loading ? (
+                  <Loader2 size={22} className="animate-spin" />
+                ) : (
+                  <>
+                    <Check size={22} strokeWidth={2.5} />
+                    <span className="text-[14px] font-medium uppercase tracking-[0.22em]">
+                      Log set
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </main>
 
         {showNav && (
           <nav
-            className="flex-none fixed bottom-0 left-0 w-full border-t pb-[env(safe-area-inset-bottom)] z-50"
-            style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+            className="fixed left-4 right-4 bottom-[calc(env(safe-area-inset-bottom)+12px)] rounded-full border shadow-[0_8px_24px_rgba(0,0,0,0.08)] z-50"
+            style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
           >
             <BottomNav active={currentView} onNav={handleNav} />
           </nav>
         )}
       </div>
 
-      <AccountSettingsDialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen} />
+      <ProfileSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </>
   );
 }

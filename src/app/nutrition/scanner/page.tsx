@@ -17,7 +17,6 @@ import {
   Pencil,
   X,
   Flame,
-  Settings2 as SettingsIcon,
   Image as ImageIcon,
   Wand2,
 } from 'lucide-react';
@@ -1313,8 +1312,6 @@ export interface NutritionScreenProps {
   hideBackButton?: boolean;
   /** Notifies the parent whenever the internal view changes (useful for hiding BottomNav). */
   onViewChange?: (view: string) => void;
-  /** Callback to open global settings. */
-  onOpenSettings?: () => void;
 }
 
 export function NutritionScreen({
@@ -1322,7 +1319,6 @@ export function NutritionScreen({
   bottomInset = 'env(safe-area-inset-bottom, 0px)',
   hideBackButton = false,
   onViewChange,
-  onOpenSettings,
 }: NutritionScreenProps = {}) {
   useSkin();
   const router = useRouter();
@@ -1569,10 +1565,8 @@ export function NutritionScreen({
 
   const renderDashboard = () => (
     <div className="absolute inset-0 flex flex-col" style={{ background: PALETTE.bg }}>
-      <div className="flex items-center justify-between px-5 pt-3 pb-4">
-        {hideBackButton ? (
-          <div className="h-11 w-11" />
-        ) : (
+      {!hideBackButton && (
+        <div className="flex items-center px-5 pt-3 pb-4">
           <button
             type="button"
             aria-label="Back"
@@ -1582,23 +1576,8 @@ export function NutritionScreen({
           >
             <ChevronLeft size={22} strokeWidth={1.75} />
           </button>
-        )}
-        <div
-          className="text-[11px] font-medium uppercase tracking-[0.28em]"
-          style={{ color: PALETTE.fg }}
-        >
-          Nutrition
         </div>
-        <button
-          type="button"
-          aria-label="Open settings"
-          onClick={onOpenSettings}
-          className="h-11 w-11 -mr-2 flex items-center justify-center rounded-full transition hover:opacity-70 active:scale-95"
-          style={{ color: PALETTE.fg }}
-        >
-          <SettingsIcon size={20} />
-        </button>
-      </div>
+      )}
 
       <div
         className="flex-1 overflow-y-auto"
