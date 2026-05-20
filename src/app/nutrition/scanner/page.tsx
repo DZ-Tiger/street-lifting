@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
   Wand2,
 } from 'lucide-react';
+import { NutritionSuggestions } from '@/components/NutritionSuggestions';
 import { toast } from 'sonner';
 
 import { supabase } from '@/lib/supabase';
@@ -1673,6 +1674,7 @@ export function NutritionScreen({
         </div>
 
         <div className="px-5">
+          <NutritionSuggestions />
           <div className="flex items-center justify-between mb-2">
             <NL>Today&apos;s log</NL>
             <NN className="text-[10px]" style={{ color: PALETTE.muted } as React.CSSProperties}>
